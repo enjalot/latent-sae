@@ -1,0 +1,8 @@
+torch
+numpy
+wandb
+optuna
+pyyaml
+datasets
+pyarrow
+tqdm

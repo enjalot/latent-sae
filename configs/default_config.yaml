@@ -1,0 +1,13 @@
+data_type: 'huggingface'  # Options: 'huggingface', 'parquet', 'dummy'
+train_data_path: 'path/to/your/train/dataset'
+val_data_path: 'path/to/your/val/dataset'
+embedding_column: 'embedding'  # Column name containing the pre-computed embeddings
+batch_size: 64
+learning_rate: 0.001
+l1_lambda: 0.001
+auxk_lambda: 0.0001
+k: 32
+auxk: 256
+expansion_factor: 128
+dead_steps_threshold: 10000
+epochs: 100
