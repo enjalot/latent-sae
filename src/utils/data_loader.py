@@ -1,30 +1,35 @@
 import torch
 from torch.utils.data import IterableDataset, DataLoader
-from datasets import load_from_disk
+from datasets import load_dataset
 import pyarrow.parquet as pq
 import numpy as np
 
 class StreamingEmbeddingDataset(IterableDataset):
-    def __init__(self, dataset, embedding_column):
-        self.dataset = dataset
+    def __init__(self, data_path, data_type, embedding_column, split="train"):
+        self.data_path = data_path
+        self.data_type = data_type
         self.embedding_column = embedding_column
+        self.split = split
 
     def __iter__(self):
-        for item in self.dataset:
-            yield torch.tensor(item[self.embedding_column], dtype=torch.float32)
-            
-    def __len__(self):
-        return len(self.dataset)
+        if self.data_type == 'huggingface':
+            dataset = load_dataset("arrow", data_dir=self.data_path, streaming=True)
+            try:
+                for item in dataset[self.split]:
+                    yield torch.tensor(item[self.embedding_column], dtype=torch.float32)
+            except:
+                # TODO: why does the last row in a dataset seem to screw up?
+                # I saved the dataset with datasets.save_to_disk()
+                pass
+        elif self.data_type == 'parquet':
+            parquet_file = pq.ParquetFile(self.data_path)
+            for batch in parquet_file.iter_batches():
+                df = batch.to_pandas()
+                for _, row in df.iterrows():
+                    yield torch.tensor(row[self.embedding_column], dtype=torch.float32)
 
-def get_streaming_dataloader(data_path, data_type, embedding_column, batch_size=32):
-    if data_type == 'huggingface':
-        dataset = load_from_disk(data_path)
-    elif data_type == 'parquet':
-        dataset = pq.ParquetDataset(data_path)
-    else:
-        raise ValueError("Invalid data_type. Choose 'huggingface' or 'parquet'.")
-
-    streaming_dataset = StreamingEmbeddingDataset(dataset, embedding_column)
+def get_streaming_dataloader(data_path, data_type, embedding_column, batch_size=32, split="train"):
+    streaming_dataset = StreamingEmbeddingDataset(data_path, data_type, embedding_column, split)
     return DataLoader(streaming_dataset, batch_size=batch_size)
 
 class DummyEmbeddingDataset(IterableDataset):

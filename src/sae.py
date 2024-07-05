@@ -38,6 +38,10 @@ class SparseAutoencoder(nn.Module):
         self.decoder = nn.Linear(hidden_dim, input_dim, bias=False)
         self.topk = TopK(k)
 
+        # TODO: do these really help?
+        self.bn1 = nn.BatchNorm1d(hidden_dim)
+        self.bn2 = nn.BatchNorm1d(input_dim)
+
         self.register_buffer("stats_last_nonzero", torch.zeros(hidden_dim, dtype=torch.long))
 
     def init_weights(self):
@@ -52,15 +56,19 @@ class SparseAutoencoder(nn.Module):
 
     def forward(self, x):
         x = x - self.pre_bias
-        encoded = self.encoder(x)
+        # encoded = self.encoder(x)
+        encoded = self.bn1(self.encoder(x))
         
         # TopK activation
+        print("Before TopK - non-zero:", (encoded != 0).float().mean().item())
         activated = self.topk(encoded)
+        print("After TopK - non-zero:", (activated != 0).float().mean().item())
         
         # Update stats for dead features
         self.update_stats(activated)
         
-        decoded = self.decoder(activated)
+        # decoded = self.decoder(activated)
+        decoded = self.bn2(self.decoder(activated))
         return decoded + self.pre_bias, activated
 
     def update_stats(self, activated):

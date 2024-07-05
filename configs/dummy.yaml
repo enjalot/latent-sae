@@ -1,0 +1,17 @@
+data_type: 'dummy'  # Options: 'huggingface', 'parquet', 'dummy'
+train_data_path: 'path/to/your/train/dataset'
+val_data_path: 'path/to/your/val/dataset'
+# embedding_column: 'embedding'  # Column name containing the pre-computed embeddings
+num_train_samples: 10000  # Use this for dummy data
+num_val_samples: 200  # Use this for dummy data
+weight_decay: 0.01
+learning_rate: 0.001
+l1_lambda: 0.001
+auxk_lambda: 0.0001
+batch_size: 32
+accumulation_steps: 8
+k: 8
+auxk: 16
+expansion_factor: 2
+dead_steps_threshold: 100
+epochs: 5

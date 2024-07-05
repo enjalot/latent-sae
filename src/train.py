@@ -2,7 +2,7 @@ import torch
 import wandb
 import yaml
 import os
-from torch.optim.lr_scheduler import CosineAnnealingLR
+from torch.optim.lr_scheduler import CosineAnnealingLR, ReduceLROnPlateau
 from sae import SparseAutoencoder
 from utils.data_loader import get_streaming_dataloader, get_dummy_dataloader
 from utils.training import train_epoch, validate, SAELoss
@@ -26,8 +26,8 @@ def train(config):
         train_loader = get_dummy_dataloader(config['num_train_samples'], 768, batch_size=config['batch_size'])
         val_loader = get_dummy_dataloader(config['num_val_samples'], 768, batch_size=config['batch_size'])
     else:
-        train_loader = get_streaming_dataloader(config['train_data_path'], config['data_type'], config['embedding_column'], batch_size=config['batch_size'])
-        val_loader = get_streaming_dataloader(config['val_data_path'], config['data_type'], config['embedding_column'], batch_size=config['batch_size'])
+        train_loader = get_streaming_dataloader(config['train_data_path'], config['data_type'], config['embedding_column'], batch_size=config['batch_size'], split="train")
+        val_loader = get_streaming_dataloader(config['val_data_path'], config['data_type'], config['embedding_column'], batch_size=config['batch_size'], split="test")
     
     
     model = SparseAutoencoder(
@@ -40,23 +40,30 @@ def train(config):
     
     model.init_weights()
     
-    optimizer = torch.optim.Adam(model.parameters(), lr=config['learning_rate'])
-    scheduler = CosineAnnealingLR(optimizer, T_max=config['epochs'])
+    def warmup_lambda(epoch):
+        if epoch < 10:
+            return (epoch + 1) / 10
+        return 1
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=config['learning_rate'], weight_decay=config['weight_decay'])
+    # scheduler = CosineAnnealingLR(optimizer, T_max=config['epochs'])
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=5)
+
     criterion = SAELoss(l1_lambda=config['l1_lambda'], auxk_lambda=config['auxk_lambda'])
     
     best_val_loss = float('inf')
     for epoch in range(config['epochs']):
-        train_loss = train_epoch(model, train_loader, optimizer, criterion, device)
+        train_loss = train_epoch(model, train_loader, optimizer, criterion, device, max_steps=None, accumulation_steps=config['accumulation_steps'])
 
         # For validation, we need to reset the iterator
         if config['data_type'] == 'dummy':
             val_loader = get_dummy_dataloader(config['num_val_samples'], 768, batch_size=config['batch_size'])
         else:
-            val_loader = get_streaming_dataloader(config['val_data_path'], config['data_type'], config['embedding_column'], batch_size=config['batch_size'])
+            val_loader = get_streaming_dataloader(config['val_data_path'], config['data_type'], config['embedding_column'], batch_size=config['batch_size'], split="test")
 
-        val_loss = validate(model, val_loader, criterion, device)
+        val_loss = validate(model, val_loader, criterion, device, max_steps=None)
         
-        scheduler.step()
+        scheduler.step(val_loss)
         
         # Log metrics
         wandb.log({
@@ -74,15 +81,19 @@ def train(config):
             torch.save(model.state_dict(), os.path.join(wandb.run.dir, "best_model.pth"))
         
         # Log feature density histogram
-        if epoch % 10 == 0:  # Log every 10 epochs to reduce overhead
-            feature_density = (model.stats_last_nonzero == 0).float().mean().item()
-            wandb.log({"feature_density": feature_density})
-            
-            # You can also log a histogram of feature activations
-            with torch.no_grad():
-                sample_batch = next(iter(val_loader)).to(device)
-                _, activations = model(sample_batch)
-                wandb.log({"activation_histogram": wandb.Histogram(activations.cpu().numpy())})
+        # if epoch % 5 == 0:  # Log every 5 epochs to reduce overhead
+        feature_density = (model.stats_last_nonzero == 0).float().mean().item()
+        wandb.log({"feature_density": feature_density})
+        print("FEATURE DENSITY", feature_density)
+        print("stats_last_nonzero min:", model.stats_last_nonzero.min().item())
+        print("stats_last_nonzero max:", model.stats_last_nonzero.max().item())
+        print("stats_last_nonzero mean:", model.stats_last_nonzero.float().mean().item())
+        
+        # # You can also log a histogram of feature activations
+        # with torch.no_grad():
+        #     sample_batch = next(iter(val_loader)).to(device)
+        #     _, activations = model(sample_batch)
+        #     wandb.log({"activation_histogram": wandb.Histogram(activations.cpu().numpy())})
     
     wandb.finish()
     return best_val_loss
