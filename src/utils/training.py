@@ -3,6 +3,95 @@ import torch
 from tqdm.auto import tqdm
 import wandb
 
+
+def log_gradients(model, step):
+    for name, param in model.named_parameters():
+        if param.grad is not None:
+            grad_abs = param.grad.abs()
+            grad_mean = grad_abs.mean().item()
+            grad_median = grad_abs.median().item()
+            grad_max = grad_abs.max().item()
+            grad_min = grad_abs.min().item()
+            grad_std = grad_abs.std().item()
+            
+            # Log to console
+            print(f"Gradient for {name} at step {step}:")
+            print(f"  Mean: {grad_mean:.6f}")
+            print(f"  Median: {grad_median:.6f}")
+            print(f"  Max: {grad_max:.6f}")
+            print(f"  Min: {grad_min:.6f}")
+            print(f"  Std: {grad_std:.6f}")
+            
+            # Log to wandb
+            wandb.log({
+                f"gradient/{name}/mean": grad_mean,
+                f"gradient/{name}/median": grad_median,
+                f"gradient/{name}/max": grad_max,
+                f"gradient/{name}/min": grad_min,
+                f"gradient/{name}/std": grad_std,
+            }, step=step)
+            
+            # Log histogram to wandb
+            wandb.log({f"gradient/{name}/histogram": wandb.Histogram(grad_abs.cpu().numpy())}, step=step)
+
+def check_vanishing_gradients(model, threshold=1e-5):
+    for name, param in model.named_parameters():
+        if param.grad is not None:
+            grad_norm = param.grad.norm().item()
+            param_norm = param.norm().item()
+            
+            if grad_norm < threshold:
+                print(f"Potential vanishing gradient in {name}:")
+                print(f"  Gradient norm: {grad_norm:.6f}")
+                print(f"  Parameter norm: {param_norm:.6f}")
+                print(f"  Ratio: {grad_norm/param_norm:.6f}")
+            
+            # Log the ratio to wandb
+            wandb.log({f"grad_param_ratio/{name}": grad_norm/param_norm})
+
+# Call this function in your training loop
+check_vanishing_gradients(model)
+def log_activations(model, batch, step):
+    model.eval()  # Set model to evaluation mode
+    with torch.no_grad():
+        _, activated = model(batch)
+    
+    # Compute statistics
+    non_zero = (activated != 0).float().mean().item()
+    activation_mean = activated.mean().item()
+    activation_median = activated.median().item()
+    activation_max = activated.max().item()
+    activation_min = activated.min().item()
+    activation_std = activated.std().item()
+    
+    # Log to console
+    print(f"Activations at step {step}:")
+    print(f"  Non-zero fraction: {non_zero:.6f}")
+    print(f"  Mean: {activation_mean:.6f}")
+    print(f"  Median: {activation_median:.6f}")
+    print(f"  Max: {activation_max:.6f}")
+    print(f"  Min: {activation_min:.6f}")
+    print(f"  Std: {activation_std:.6f}")
+    
+    # Log to wandb
+    wandb.log({
+        "activations/non_zero_fraction": non_zero,
+        "activations/mean": activation_mean,
+        "activations/median": activation_median,
+        "activations/max": activation_max,
+        "activations/min": activation_min,
+        "activations/std": activation_std,
+    }, step=step)
+    
+    # Log histogram to wandb
+    # wandb.log({"activations/histogram": wandb.Histogram(activated.cpu().numpy())}, step=step)
+    
+    # Log sparsity pattern
+    # sparsity_pattern = (activated != 0).float().mean(dim=0).cpu().numpy()
+    # wandb.log({"activations/sparsity_pattern": wandb.Image(plt.imshow(sparsity_pattern.reshape(1, -1), aspect='auto', cmap='viridis'))}, step=step)
+    
+    model.train()  # Set model back to training mode
+
 class SAELoss(torch.nn.Module):
     def __init__(self, l1_lambda, auxk_lambda):
         super(SAELoss, self).__init__()
@@ -61,10 +150,12 @@ def train_epoch(model, dataloader, optimizer, criterion, device, max_steps=None,
         loss = criterion(decoded, batch, activated, model)
 
         if i % 100 == 0:  # Check every 100 batches
-            print("Activation stats:")
-            print("  Non-zero activations:", (activated != 0).float().mean().item())
-            print("  Max activation:", activated.max().item())
-            print("  Mean activation:", activated.mean().item())
+            log_gradients(model, i)
+            log_activations(model, batch, i)
+            # print("Activation stats:")
+            # print("  Non-zero activations:", (activated != 0).float().mean().item())
+            # print("  Max activation:", activated.max().item())
+            # print("  Mean activation:", activated.mean().item())
         
         # Normalize the loss to account for accumulation
         loss = loss / accumulation_steps

@@ -7,6 +7,7 @@ from sae import SparseAutoencoder
 from utils.data_loader import get_streaming_dataloader, get_dummy_dataloader
 from utils.training import train_epoch, validate, SAELoss
 
+
 def train(config):
     # Initialize wandb
     run = wandb.init(project="sae-nomic-text-v1.5", job_type="training", config=config)
@@ -88,12 +89,14 @@ def train(config):
         print("stats_last_nonzero min:", model.stats_last_nonzero.min().item())
         print("stats_last_nonzero max:", model.stats_last_nonzero.max().item())
         print("stats_last_nonzero mean:", model.stats_last_nonzero.float().mean().item())
-        
-        # # You can also log a histogram of feature activations
-        # with torch.no_grad():
-        #     sample_batch = next(iter(val_loader)).to(device)
-        #     _, activations = model(sample_batch)
-        #     wandb.log({"activation_histogram": wandb.Histogram(activations.cpu().numpy())})
+
+        unique_features = torch.zeros(model.hidden_dim, dtype=torch.bool)
+        with torch.no_grad():
+            sample_batch = next(iter(val_loader)).to(device)
+            _, activated = model(sample_batch)
+            unique_features |= (activated.sum(dim=0) > 0)
+            print(f"Unique features used: {unique_features.sum().item()}")
+            # wandb.log({"activation_histogram": wandb.Histogram(activations.cpu().numpy())})
     
     wandb.finish()
     return best_val_loss

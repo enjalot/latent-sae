@@ -24,6 +24,31 @@ class TopK(nn.Module):
     def forward(self, x):
         return TopKFunction.apply(x, self.k)
 
+
+class SmoothTopKFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input, k):
+        values, indices = input.topk(k, dim=-1)
+        ctx.save_for_backward(input, values, indices)
+        return torch.where(input >= values.min(dim=-1, keepdim=True)[0], input, torch.zeros_like(input))
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        input, values, indices = ctx.saved_tensors
+        grad_input = grad_output.clone()
+        threshold = values.min(dim=-1, keepdim=True)[0]
+        grad_input *= (input >= threshold).float()
+        return grad_input, None
+
+class SmoothTopK(nn.Module):
+    def __init__(self, k):
+        super(SmoothTopK, self).__init__()
+        self.k = k
+
+    def forward(self, x):
+        return SmoothTopKFunction.apply(x, self.k)
+
+
 class SparseAutoencoder(nn.Module):
     def __init__(self, input_dim, hidden_dim, k, auxk=None, dead_steps_threshold=10000):
         super(SparseAutoencoder, self).__init__()
@@ -36,11 +61,14 @@ class SparseAutoencoder(nn.Module):
         self.pre_bias = nn.Parameter(torch.zeros(input_dim))
         self.encoder = nn.Linear(input_dim, hidden_dim, bias=True)
         self.decoder = nn.Linear(hidden_dim, input_dim, bias=False)
-        self.topk = TopK(k)
+        # self.topk = TopK(k)
+        self.topk = SmoothTopK(k)
 
-        # TODO: do these really help?
         self.bn1 = nn.BatchNorm1d(hidden_dim)
         self.bn2 = nn.BatchNorm1d(input_dim)
+        # self.ln1 = nn.LayerNorm(hidden_dim)
+        # self.ln2 = nn.LayerNorm(input_dim)
+
 
         self.register_buffer("stats_last_nonzero", torch.zeros(hidden_dim, dtype=torch.long))
 
@@ -58,17 +86,21 @@ class SparseAutoencoder(nn.Module):
         x = x - self.pre_bias
         # encoded = self.encoder(x)
         encoded = self.bn1(self.encoder(x))
+        # encoded = self.ln1(self.encoder(x))
         
+        encoded = F.normalize(encoded, p=2, dim=-1)  # L2 normalization
+
         # TopK activation
-        print("Before TopK - non-zero:", (encoded != 0).float().mean().item())
+        # print("Before TopK - non-zero:", (encoded != 0).float().mean().item())
         activated = self.topk(encoded)
-        print("After TopK - non-zero:", (activated != 0).float().mean().item())
+        # print("After TopK - non-zero:", (activated != 0).float().mean().item())
         
         # Update stats for dead features
         self.update_stats(activated)
         
         # decoded = self.decoder(activated)
         decoded = self.bn2(self.decoder(activated))
+        # decoded = self.ln2(self.decoder(activated))
         return decoded + self.pre_bias, activated
 
     def update_stats(self, activated):
