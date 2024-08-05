@@ -66,6 +66,8 @@ class TrainConfig(Serializable):
     save_every: int = 1000
     """Save SAEs every `save_every` steps."""
 
+    checkpoints_directory: str = "/checkpoints"
+
     log_to_wandb: bool = True
     run_name: str | None = None
     wandb_log_frequency: int = 1

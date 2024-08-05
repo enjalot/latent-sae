@@ -10,33 +10,42 @@ class StreamingEmbeddingDataset(IterableDataset):
         self.data_type = data_type
         self.embedding_column = embedding_column
         self.split = split
+        self.dataset = None
 
     def __iter__(self):
         if self.data_type == 'huggingface':
             # dataset = load_dataset("arrow", data_dir=self.data_path, streaming=True)
-            dataset = load_from_disk(self.data_path)
+            print("loading for iteration", self.data_path)
+            if self.dataset is None:
+                self.dataset = load_from_disk(self.data_path)
+            print("loaded")
             try:
-                for item in dataset[self.split]:
+                for item in self.dataset[self.split]:
                     yield torch.tensor(item[self.embedding_column], dtype=torch.float32)
             except:
                 # TODO: why does the last row in a dataset seem to screw up?
                 # I saved the dataset with datasets.save_to_disk()
                 pass
         elif self.data_type == 'parquet':
-            parquet_file = pq.ParquetFile(self.data_path)
-            for batch in parquet_file.iter_batches():
+            if self.dataset is None:
+                self.dataset = pq.ParquetFile(self.data_path)
+            for batch in self.dataset.iter_batches():
                 df = batch.to_pandas()
                 for _, row in df.iterrows():
                     yield torch.tensor(row[self.embedding_column], dtype=torch.float32)
 
     def __len__(self):
         if self.data_type == 'huggingface':
-            dataset = load_from_disk(self.data_path)
-            nr = dataset[self.split].num_rows
+            print("loading", self.data_path)
+            if self.dataset is None:
+                self.dataset = load_from_disk(self.data_path)
+            nr = self.dataset[self.split].num_rows
+            print("loaded", nr)
             return nr
         elif self.data_type == 'parquet':
-            parquet_file = pq.ParquetFile(self.data_path)
-            return parquet_file.metadata.num_rows
+            if self.dataset is None:
+                self.dataset = pq.ParquetFile(self.data_path)
+            return self.dataset.metadata.num_rows
         else:
             raise ValueError(f"Unsupported data_type: {self.data_type}")
 

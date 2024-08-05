@@ -28,7 +28,6 @@ class SaeTrainer:
         # assert isinstance(dataset, Sized)
         d_in = cfg.d_in
         print("dimensions", d_in)
-        print("DATASET", dataset)
         num_examples = len(dataset)
         self.num_examples = num_examples
         print("num examples", num_examples)
@@ -45,8 +44,9 @@ class SaeTrainer:
         #     )
 
         # self.model = model
+        name = f"sae_{cfg.sae.k}_{cfg.sae.expansion_factor}"
         self.saes = {
-            "sae": Sae(d_in, cfg.sae, device)
+            name: Sae(d_in, cfg.sae, device)
             # for hook in self.local_hookpoints()
         }
         # self.sae = Sae(d_in, cfg.sae, device)
@@ -396,7 +396,7 @@ class SaeTrainer:
             for hook, sae in self.saes.items():
                 assert isinstance(sae, Sae)
 
-                path = self.cfg.run_name or "checkpoints"
+                path = self.cfg.checkpoints_directory or "checkpoints"
                 sae.save_to_disk(f"{path}/{hook}")
 
         # Barrier to ensure all ranks have saved before continuing
