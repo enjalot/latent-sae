@@ -1,140 +1,205 @@
+# taking heavily from https://github.com/EleutherAI/sae/blob/main/sae/sae.py
+import json
+
+from typing import NamedTuple
+from pathlib import Path
+
+import einops
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
+from torch import Tensor, nn
+from safetensors.torch import load_model, save_model
 
-class TopKFunction(torch.autograd.Function):
+from utils.config import SaeConfig
+from utils.eleuther import decoder_impl
+
+
+class EncoderOutput(NamedTuple):
+    top_acts: Tensor
+    """Activations of the top-k latents."""
+
+    top_indices: Tensor
+    """Indices of the top-k features."""
+
+
+class ForwardOutput(NamedTuple):
+    sae_out: Tensor
+
+    latent_acts: Tensor
+    """Activations of the top-k latents."""
+
+    latent_indices: Tensor
+    """Indices of the top-k features."""
+
+    fvu: Tensor
+    """Fraction of variance unexplained."""
+
+    auxk_loss: Tensor
+    """AuxK loss, if applicable."""
+
+  
+
+class Sae(nn.Module):
+    def __init__(
+        self,
+        d_in: int,
+        cfg: SaeConfig,
+        device: str | torch.device = "cpu",
+        dtype: torch.dtype | None = None,
+        *,
+        decoder: bool = True,
+    ):
+        super().__init__()
+        self.cfg = cfg
+        self.d_in = d_in
+        self.num_latents = cfg.num_latents or d_in * cfg.expansion_factor
+
+        self.encoder = nn.Linear(d_in, self.num_latents, device=device, dtype=dtype)
+        self.encoder.bias.data.zero_()
+
+        self.W_dec = nn.Parameter(self.encoder.weight.data.clone()) if decoder else None
+        if decoder and self.cfg.normalize_decoder:
+            self.set_decoder_norm_to_unit_norm()
+
+        self.b_dec = nn.Parameter(torch.zeros(d_in, dtype=dtype, device=device))
+
     @staticmethod
-    def forward(ctx, input, k):
-        values, indices = input.topk(k, dim=-1)
-        ctx.save_for_backward(indices, input)
-        return torch.where(input >= values.min(dim=-1, keepdim=True)[0], input, torch.zeros_like(input))
+    def load_from_disk(
+        path: Path | str,
+        device: str | torch.device = "cpu",
+        *,
+        decoder: bool = True,
+    ) -> "Sae":
+        path = Path(path)
 
-    @staticmethod
-    def backward(ctx, grad_output):
-        indices, input = ctx.saved_tensors
-        grad_input = grad_output.clone()
-        grad_input.scatter_(1, indices, 0)
-        return grad_input, None
+        with open(path / "cfg.json", "r") as f:
+            cfg_dict = json.load(f)
+            d_in = cfg_dict.pop("d_in")
+            cfg = SaeConfig(**cfg_dict)
 
-class TopK(nn.Module):
-    def __init__(self, k):
-        super(TopK, self).__init__()
-        self.k = k
+        sae = Sae(d_in, cfg, device=device, decoder=decoder)
+        load_model(
+            model=sae,
+            filename=str(path / "sae.safetensors"),
+            device=str(device),
+            # TODO: Maybe be more fine-grained about this in the future?
+            strict=decoder,
+        )
+        return sae
 
-    def forward(self, x):
-        return TopKFunction.apply(x, self.k)
+    def save_to_disk(self, path: Path | str):
+        path = Path(path)
+        path.mkdir(parents=True, exist_ok=True)
 
+        save_model(self, str(path / "sae.safetensors"))
+        with open(path / "cfg.json", "w") as f:
+            json.dump(
+                {
+                    **self.cfg.to_dict(),
+                    "d_in": self.d_in,
+                },
+                f,
+            )
 
-class SmoothTopKFunction(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, input, k):
-        values, indices = input.topk(k, dim=-1)
-        ctx.save_for_backward(input, values, indices)
-        return torch.where(input >= values.min(dim=-1, keepdim=True)[0], input, torch.zeros_like(input))
+    @property
+    def device(self):
+        return self.encoder.weight.device
 
-    @staticmethod
-    def backward(ctx, grad_output):
-        input, values, indices = ctx.saved_tensors
-        grad_input = grad_output.clone()
-        threshold = values.min(dim=-1, keepdim=True)[0]
-        grad_input *= (input >= threshold).float()
-        return grad_input, None
+    @property
+    def dtype(self):
+        return self.encoder.weight.dtype
 
-class SmoothTopK(nn.Module):
-    def __init__(self, k):
-        super(SmoothTopK, self).__init__()
-        self.k = k
+    def pre_acts(self, x: Tensor) -> Tensor:
+        # Remove decoder bias as per Anthropic
+        sae_in = x.to(self.dtype) - self.b_dec
+        out = self.encoder(sae_in)
 
-    def forward(self, x):
-        return SmoothTopKFunction.apply(x, self.k)
+        return nn.functional.relu(out) if not self.cfg.signed else out
 
+    def select_topk(self, latents: Tensor) -> EncoderOutput:
+        """Select the top-k latents."""
+        if self.cfg.signed:
+            _, top_indices = latents.abs().topk(self.cfg.k, sorted=False)
+            top_acts = latents.gather(dim=-1, index=top_indices)
 
-class SparseAutoencoder(nn.Module):
-    def __init__(self, input_dim, hidden_dim, k, auxk=None, dead_steps_threshold=10000):
-        super(SparseAutoencoder, self).__init__()
-        self.input_dim = input_dim
-        self.hidden_dim = hidden_dim
-        self.k = k
-        self.auxk = auxk
-        self.dead_steps_threshold = dead_steps_threshold
+            return EncoderOutput(top_acts, top_indices)
 
-        self.pre_bias = nn.Parameter(torch.zeros(input_dim))
-        self.encoder = nn.Linear(input_dim, hidden_dim, bias=True)
-        self.decoder = nn.Linear(hidden_dim, input_dim, bias=False)
-        # self.topk = TopK(k)
-        self.topk = SmoothTopK(k)
+        return EncoderOutput(*latents.topk(self.cfg.k, sorted=False))
 
-        self.bn1 = nn.BatchNorm1d(hidden_dim)
-        self.bn2 = nn.BatchNorm1d(input_dim)
-        # self.ln1 = nn.LayerNorm(hidden_dim)
-        # self.ln2 = nn.LayerNorm(input_dim)
+    def encode(self, x: Tensor) -> EncoderOutput:
+        """Encode the input and select the top-k latents."""
+        return self.select_topk(self.pre_acts(x))
 
+    def decode(self, top_acts: Tensor, top_indices: Tensor) -> Tensor:
+        assert self.W_dec is not None, "Decoder weight was not initialized."
 
-        self.register_buffer("stats_last_nonzero", torch.zeros(hidden_dim, dtype=torch.long))
+        y = decoder_impl(top_indices, top_acts.to(self.dtype), self.W_dec.mT)
+        return y + self.b_dec
 
-    def init_weights(self):
-        nn.init.kaiming_uniform_(self.encoder.weight)
-        nn.init.kaiming_uniform_(self.decoder.weight)
-        self.decoder.weight.data = self.decoder.weight.data.T.contiguous().T
-        self.unit_norm_decoder_()
+    def forward(self, x: Tensor, dead_mask: Tensor | None = None) -> ForwardOutput:
+        pre_acts = self.pre_acts(x)
+        top_acts, top_indices = self.select_topk(pre_acts)
 
-    def unit_norm_decoder_(self):
-        with torch.no_grad():
-            self.decoder.weight.data /= self.decoder.weight.data.norm(dim=0, keepdim=True)
+        # Decode and compute residual
+        sae_out = self.decode(top_acts, top_indices)
+        e = sae_out - x
 
-    def forward(self, x):
-        x = x - self.pre_bias
-        # encoded = self.encoder(x)
-        encoded = self.bn1(self.encoder(x))
-        # encoded = self.ln1(self.encoder(x))
-        
-        encoded = F.normalize(encoded, p=2, dim=-1)  # L2 normalization
+        # Used as a denominator for putting everything on a reasonable scale
+        total_variance = (x - x.mean(0)).pow(2).sum(0)
 
-        # TopK activation
-        # print("Before TopK - non-zero:", (encoded != 0).float().mean().item())
-        activated = self.topk(encoded)
-        # print("After TopK - non-zero:", (activated != 0).float().mean().item())
-        
-        # Update stats for dead features
-        self.update_stats(activated)
-        
-        # decoded = self.decoder(activated)
-        decoded = self.bn2(self.decoder(activated))
-        # decoded = self.ln2(self.decoder(activated))
-        return decoded + self.pre_bias, activated
+        # Second decoder pass for AuxK loss
+        if dead_mask is not None and (num_dead := int(dead_mask.sum())) > 0:
+            # Heuristic from Appendix B.1 in the paper
+            k_aux = x.shape[-1] // 2
 
-    def update_stats(self, activated):
-        nonzero = (activated != 0).any(0)
-        self.stats_last_nonzero *= 1 - nonzero.long()
-        self.stats_last_nonzero += 1
+            # Reduce the scale of the loss if there are a small number of dead latents
+            scale = min(num_dead / k_aux, 1.0)
+            k_aux = min(k_aux, num_dead)
 
-    def encode(self, x):
-        x = x - self.pre_bias
-        return self.topk(self.encoder(x))
+            # Don't include living latents in this loss
+            auxk_latents = torch.where(dead_mask[None], pre_acts, -torch.inf)
 
-    def auxk_loss(self, activated):
-        if self.auxk is None:
-            return 0
-        
-        dead_mask = self.stats_last_nonzero > self.dead_steps_threshold
-        auxk_activated = self.topk(activated * dead_mask.float())
-        return auxk_activated.abs().sum()
+            # Top-k dead latents
+            auxk_acts, auxk_indices = auxk_latents.topk(k_aux, sorted=False)
 
-def unit_norm_decoder_grad_adjustment_(autoencoder):
-    decoder_weight_grad = autoencoder.decoder.weight.grad
-    if decoder_weight_grad is not None:
-        proj = torch.sum(autoencoder.decoder.weight * decoder_weight_grad, dim=0, keepdim=True)
-        decoder_weight_grad.sub_(proj * autoencoder.decoder.weight)
+            # Encourage the top ~50% of dead latents to predict the residual of the
+            # top k living latents
+            e_hat = self.decode(auxk_acts, auxk_indices)
+            auxk_loss = (e_hat - e).pow(2).sum(0)
+            auxk_loss = scale * torch.mean(auxk_loss / total_variance)
+        else:
+            auxk_loss = sae_out.new_tensor(0.0)
 
-class SAELoss(nn.Module):
-    def __init__(self, l1_lambda, auxk_lambda):
-        super(SAELoss, self).__init__()
-        self.l1_lambda = l1_lambda
-        self.auxk_lambda = auxk_lambda
-        self.mse_loss = nn.MSELoss()
+        l2_loss = e.pow(2).sum(0)
+        fvu = torch.mean(l2_loss / total_variance)
 
-    def forward(self, decoded, target, activated, autoencoder):
-        mse = self.mse_loss(decoded, target)
-        l1 = self.l1_lambda * activated.abs().sum()
-        auxk = self.auxk_lambda * autoencoder.auxk_loss(activated)
-        return mse + l1 + auxk
+        return ForwardOutput(
+            sae_out,
+            top_acts,
+            top_indices,
+            fvu,
+            auxk_loss,
+        )
+
+    @torch.no_grad()
+    def set_decoder_norm_to_unit_norm(self):
+        assert self.W_dec is not None, "Decoder weight was not initialized."
+
+        eps = torch.finfo(self.W_dec.dtype).eps
+        norm = torch.norm(self.W_dec.data, dim=1, keepdim=True)
+        self.W_dec.data /= norm + eps
+
+    @torch.no_grad()
+    def remove_gradient_parallel_to_decoder_directions(self):
+        assert self.W_dec is not None, "Decoder weight was not initialized."
+        assert self.W_dec.grad is not None  # keep pyright happy
+
+        parallel_component = einops.einsum(
+            self.W_dec.grad,
+            self.W_dec.data,
+            "d_sae d_in, d_sae d_in -> d_sae",
+        )
+        self.W_dec.grad -= einops.einsum(
+            parallel_component,
+            self.W_dec.data,
+            "d_sae, d_sae d_in -> d_sae d_in",
+        )

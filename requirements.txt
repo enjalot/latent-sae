@@ -6,3 +6,10 @@ pyyaml
 datasets
 pyarrow
 tqdm
+dataclasses
+simple_parsing
+einops
+safetensors
+accelerate
+transformers
+bitsandbytes

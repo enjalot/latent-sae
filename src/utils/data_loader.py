@@ -1,6 +1,6 @@
 import torch
 from torch.utils.data import IterableDataset, DataLoader
-from datasets import load_dataset
+from datasets import load_dataset, load_from_disk
 import pyarrow.parquet as pq
 import numpy as np
 
@@ -13,7 +13,8 @@ class StreamingEmbeddingDataset(IterableDataset):
 
     def __iter__(self):
         if self.data_type == 'huggingface':
-            dataset = load_dataset("arrow", data_dir=self.data_path, streaming=True)
+            # dataset = load_dataset("arrow", data_dir=self.data_path, streaming=True)
+            dataset = load_from_disk(self.data_path)
             try:
                 for item in dataset[self.split]:
                     yield torch.tensor(item[self.embedding_column], dtype=torch.float32)
@@ -27,6 +28,17 @@ class StreamingEmbeddingDataset(IterableDataset):
                 df = batch.to_pandas()
                 for _, row in df.iterrows():
                     yield torch.tensor(row[self.embedding_column], dtype=torch.float32)
+
+    def __len__(self):
+        if self.data_type == 'huggingface':
+            dataset = load_from_disk(self.data_path)
+            nr = dataset[self.split].num_rows
+            return nr
+        elif self.data_type == 'parquet':
+            parquet_file = pq.ParquetFile(self.data_path)
+            return parquet_file.metadata.num_rows
+        else:
+            raise ValueError(f"Unsupported data_type: {self.data_type}")
 
 def get_streaming_dataloader(data_path, data_type, embedding_column, batch_size=32, split="train"):
     streaming_dataset = StreamingEmbeddingDataset(data_path, data_type, embedding_column, split)
