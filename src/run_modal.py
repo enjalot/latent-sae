@@ -1,16 +1,18 @@
 import sys
 
 from trainer import SaeTrainer
-from utils.data_loader import StreamingEmbeddingDataset
+from utils.data_loader import StreamingEmbeddingDataset, ShardedEmbeddingDataset
 
 from simple_parsing import parse
 from modal import App, Image, Secret, Volume, build, enter, exit, gpu, method
 
-DATASET = f"/embeddings/fineweb-edu-sample-10BT-chunked-500-HF4"
+# DATASET = f"/embeddings/fineweb-edu-sample-10BT-chunked-500-HF4"
+DATASET = f"/embeddings/fineweb-edu-sample-10BT-chunked-500-HF4-torched"
 GPU_CONCURRENCY = 1
+# CPU_CONCURRENCY = 16
 # GPU_CONFIG = gpu.A100(size="80GB")
-# GPU_CONFIG = gpu.A100(size="40GB")
-GPU_CONFIG = gpu.A10G()
+GPU_CONFIG = gpu.A100(size="40GB")
+# GPU_CONFIG = gpu.A10G()
 # GPU_CONFIG = gpu.H100()
 
 st_image = (
@@ -56,7 +58,7 @@ app = App(
 
 @app.cls(
     gpu=GPU_CONFIG,
-    # cpu=16,
+    # cpu=CPU_CONCURRENCY,
     concurrency_limit=GPU_CONCURRENCY,
     timeout=60 * 60 * 10, # 10 hours
     container_idle_timeout=1200,
@@ -80,7 +82,11 @@ class RemoteTrainer:
         # TRAIN
         print(f"Training on '{args.dataset}' (split '{args.split}')")
         # print(f"Storing model weights in {model.dtype}")
-        dataset = StreamingEmbeddingDataset(args.dataset, args.data_type, args.embedding_column, split=args.split)
+        # dataset = StreamingEmbeddingDataset(args.dataset, args.data_type, args.embedding_column, split=args.split)
+        # shuffled = SimpleShuffleDataset(dataset, buffer_size=1000000)
+        # shuffled = ThreadedShuffleDataset(dataset, buffer_size=1000000)
+        # shuffled = ThreadedBufferDataset(dataset, buffer_size=200000)
+        dataset = ShardedEmbeddingDataset(args.dataset, cache_size=10, use_mmap=False, d_in=768, warm_up_cache=False)
         trainer = SaeTrainer(args, dataset, self.device)
         trainer.fit()
 

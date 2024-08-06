@@ -112,7 +112,8 @@ class SaeTrainer:
         dl = DataLoader(
             self.dataset,
             batch_size=self.cfg.batch_size,
-            # shuffle=True,
+            num_workers=4,
+            pin_memory=True
         )
         pbar = tqdm(dl, desc="Training", disable=not rank_zero)
         # pbar = tqdm(desc="Training", disable=not rank_zero)
@@ -131,53 +132,8 @@ class SaeTrainer:
         avg_auxk_loss = defaultdict(float)
         avg_fvu = defaultdict(float)
 
-        # hidden_dict: dict[str, Tensor] = {}
-        # name_to_module = {
-        #     name: self.model.get_submodule(name) for name in self.cfg.hookpoints
-        # }
-        # module_to_name = {v: k for k, v in name_to_module.items()}
-
-        # def hook(module: nn.Module, _, outputs):
-        #     # Maybe unpack tuple outputs
-        #     if isinstance(outputs, tuple):
-        #         outputs = outputs[0]
-
-        #     name = module_to_name[module]
-        #     hidden_dict[name] = outputs.flatten(0, 1)
         for i, batch in enumerate(pbar):
-        #   hidden_dict.clear()
-
-        # for i in range(self.num_examples):
-            # Collect batch_size elements
-            # batch = []
-            # for _ in range(self.cfg.batch_size):
-            #     batch.append(next(iter(self.dataset)))
-            
-            # Stack the batch elements
-            # batch = torch.stack(batch)
-
-            # Bookkeeping for dead feature detection
             num_tokens_in_step += batch.numel()
-
-            # Forward pass on the model to get the next batch of activations            
-            # handles = [
-            #     mod.register_forward_hook(hook) for mod in name_to_module.values()
-            # ]
-            # try:
-            #     with torch.no_grad():
-            #         self.model(batch["input_ids"].to(device))
-            # finally:
-            #     for handle in handles:
-            #         handle.remove()
-
-            # if self.cfg.distribute_modules:
-            #     hidden_dict = self.scatter_hiddens(hidden_dict)
-
-
-
-            # for name, hiddens in hidden_dict.items():
-            # hiddens = batch["input_ids"].to(self.device)
-
             hiddens = batch.to(self.device)
 
             for name in self.saes:
@@ -301,9 +257,15 @@ class SaeTrainer:
                         wandb.log(info, step=step)
 
                 if (step + 1) % self.cfg.save_every == 0:
-                    self.save()
+                    if wandb.run:
+                        self.save(wandb.run.id)
+                    else:
+                        self.save()
 
-        self.save()
+        if wandb.run:
+            self.save(wandb.run.id)
+        else:
+            self.save()
         pbar.close()
 
     # def local_hookpoints(self) -> list[str]:
@@ -383,7 +345,7 @@ class SaeTrainer:
     #     # Return a list of results, one for each layer
     #     return {hook: buffer[:, i] for i, hook in enumerate(local_hooks)}
 
-    def save(self):
+    def save(self, name=""):
         """Save the SAEs to disk."""
 
         if (
@@ -397,7 +359,7 @@ class SaeTrainer:
                 assert isinstance(sae, Sae)
 
                 path = self.cfg.checkpoints_directory or "checkpoints"
-                sae.save_to_disk(f"{path}/{hook}")
+                sae.save_to_disk(f"{path}/{hook}.{name}")
 
         # Barrier to ensure all ranks have saved before continuing
         if dist.is_initialized():
