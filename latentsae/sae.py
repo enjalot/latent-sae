@@ -8,6 +8,7 @@ import einops
 import torch
 from torch import Tensor, nn
 from safetensors.torch import load_model, save_model
+from huggingface_hub import snapshot_download
 
 from utils.config import SaeConfig
 from utils.eleuther import decoder_impl
@@ -85,6 +86,30 @@ class Sae(nn.Module):
             strict=decoder,
         )
         return sae
+
+    @staticmethod
+    def load_from_hub(
+        name: str,
+        k_expansion: str | None = None,
+        device: str | torch.device = "cpu",
+        *,
+        decoder: bool = True,
+    ) -> "Sae":
+        # Download from the HuggingFace Hub
+        repo_path = Path(
+            snapshot_download(
+                name,
+                allow_patterns=f"{k_expansion}/*" if k_expansion is not None else None,
+            )
+        )
+        if k_expansion is not None:
+            repo_path = repo_path / k_expansion
+
+        # No layer specified, and there are multiple layers
+        elif not repo_path.joinpath("cfg.json").exists():
+            raise FileNotFoundError("No config file found; try specifying a layer.")
+
+        return Sae.load_from_disk(repo_path, device=device, decoder=decoder)
 
     def save_to_disk(self, path: Path | str):
         path = Path(path)

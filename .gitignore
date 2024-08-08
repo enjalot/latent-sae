@@ -5,3 +5,5 @@ data
 __pycache__
 *.pyc
 checkpoints
+models
+*.egg-info

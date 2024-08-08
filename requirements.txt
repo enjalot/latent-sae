@@ -13,3 +13,4 @@ safetensors
 accelerate
 transformers
 bitsandbytes
+huggingface_hub
