@@ -10,8 +10,8 @@ from torch import Tensor, nn
 from safetensors.torch import load_model, save_model
 from huggingface_hub import snapshot_download
 
-from utils.config import SaeConfig
-from utils.eleuther import decoder_impl
+from .utils.config import SaeConfig
+from .utils.eleuther import decoder_impl
 
 
 class EncoderOutput(NamedTuple):
