@@ -9,13 +9,13 @@ import os
 from collections import OrderedDict
 
 class ShardedEmbeddingDataset(Dataset):
-    def __init__(self, data_dir, cache_size=10, use_mmap=False, d_in=768, warm_up_cache=True):
+    def __init__(self, data_dir, cache_size=10, d_in=768, shuffle=False, warm_up_cache=True):
         self.data_dir = data_dir
         self.shard_files = sorted([f for f in os.listdir(data_dir) if f.endswith('.pt')])
-        self.use_mmap = use_mmap
         self.cache_size = cache_size
         self.d_in = d_in
         self.cache = OrderedDict()
+        self.shuffle = shuffle
 
         # Calculate sizes without loading data
         self.shard_sizes = []
@@ -38,15 +38,9 @@ class ShardedEmbeddingDataset(Dataset):
 
     def load_shard(self, shard_idx):
         file_path = os.path.join(self.data_dir, self.shard_files[shard_idx])
-        start_time = time.time()
-        if self.use_mmap:
-            data = torch.from_numpy(np.memmap(file_path, dtype='float32', mode='r', shape=(self.shard_sizes[shard_idx], self.d_in)))
-            load_time = time.time() - start_time
-            # print(f"Loaded shard {shard_idx} using mmap in {load_time:.2f} seconds")
-        else:
-            data = torch.load(file_path)
-            load_time = time.time() - start_time
-            # print(f"Loaded shard {shard_idx} using torch.load in {load_time:.2f} seconds")
+        data = torch.load(file_path)
+        if self.shuffle:
+            data = data[torch.randperm(data.shape[0])]
         return data
 
     def __getitem__(self, idx):
@@ -65,7 +59,7 @@ class ShardedEmbeddingDataset(Dataset):
         return self.cache[shard_idx][idx_in_shard]
 
 # Usage
-# dataset = ShardedDataset("path/to/preprocessed_data", cache_size=10, use_mmap=True, d_in=768)
+# dataset = ShardedDataset("path/to/preprocessed_data", cache_size=10, d_in=768)
 # dataloader = DataLoader(dataset, batch_size=64, num_workers=4, pin_memory=True)
 
 """

@@ -1,7 +1,8 @@
-import sys
-
-from trainer import SaeTrainer
-from utils.data_loader import StreamingEmbeddingDataset, ShardedEmbeddingDataset
+"""
+modal run train_modal.py --batch-size 512 --grad-acc-steps 4 --k 128 --expansion-factor 32
+"""
+from latentsae.trainer import SaeTrainer, TrainConfig
+from latentsae.utils.data_loader import StreamingEmbeddingDataset, ShardedEmbeddingDataset
 
 from simple_parsing import parse
 from modal import App, Image, Secret, Volume, build, enter, exit, gpu, method
@@ -11,8 +12,8 @@ DATASET = f"/embeddings/fineweb-edu-sample-10BT-chunked-500-HF4-torched"
 GPU_CONCURRENCY = 1
 # CPU_CONCURRENCY = 16
 # GPU_CONFIG = gpu.A100(size="80GB")
-GPU_CONFIG = gpu.A100(size="40GB")
-# GPU_CONFIG = gpu.A10G()
+# GPU_CONFIG = gpu.A100(size="40GB")
+GPU_CONFIG = gpu.A10G()
 # GPU_CONFIG = gpu.H100()
 
 st_image = (
@@ -86,7 +87,7 @@ class RemoteTrainer:
         # shuffled = SimpleShuffleDataset(dataset, buffer_size=1000000)
         # shuffled = ThreadedShuffleDataset(dataset, buffer_size=1000000)
         # shuffled = ThreadedBufferDataset(dataset, buffer_size=200000)
-        dataset = ShardedEmbeddingDataset(args.dataset, cache_size=10, use_mmap=False, d_in=768, warm_up_cache=False)
+        dataset = ShardedEmbeddingDataset(args.dataset, cache_size=10, d_in=768, shuffle=True, warm_up_cache=False)
         trainer = SaeTrainer(args, dataset, self.device)
         trainer.fit()
 
@@ -94,7 +95,6 @@ class RemoteTrainer:
 
 @app.local_entrypoint()
 def run(batch_size: int, expansion_factor: int, k: int, grad_acc_steps: int):
-    from trainer import TrainConfig
     class RunConfig(TrainConfig):
         dataset: str = "./notebooks/data/test_train2"
         """Path to the dataset to use for training."""

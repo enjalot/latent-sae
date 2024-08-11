@@ -1,12 +1,15 @@
+"""
+python train_local.py --batch_size=512 --grad_acc_steps=4 --k=64 --expansion_factor=32
+"""
 import os
 import torch
 from simple_parsing import field, parse
 
-from trainer import SaeTrainer, TrainConfig
-from utils.data_loader import StreamingEmbeddingDataset
+from latentsae.trainer import SaeTrainer, TrainConfig
+from latentsae.utils.data_loader import StreamingEmbeddingDataset
 
 class RunConfig(TrainConfig):
-    dataset: str = "./notebooks/data/test_train2"
+    dataset: str = "./notebooks/data/test_train"
     """Path to the dataset to use for training."""
 
     data_type: str = "huggingface"
@@ -19,7 +22,7 @@ class RunConfig(TrainConfig):
     embedding_column: str = "embedding"
     """Column to use for embedding."""
 
-    wandb_project: str = "sae-fw-modal-nomic-text-v1.5"
+    wandb_project: str = "sae-fw-local-nomic-text-v1.5"
     """Wandb project name."""
 
 def run():
