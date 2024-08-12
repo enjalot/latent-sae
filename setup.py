@@ -30,7 +30,7 @@ setup(
     version=version,
     description='LatentSAE: Training and inference for SAEs on embeddings',
     long_description=long_description,
-    long_description_content_type='te xt/markdown',
+    long_description_content_type='text/markdown',
     url='https://github.com/enjalot/latent-sae',
     project_urls={
         'Source': 'https://github.com/enjalot/latent-sae',
