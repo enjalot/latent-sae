@@ -8,7 +8,8 @@ from simple_parsing import parse
 from modal import App, Image, Secret, Volume, build, enter, exit, gpu, method
 
 # DATASET = f"/embeddings/fineweb-edu-sample-10BT-chunked-500-HF4"
-DATASET = f"/embeddings/fineweb-edu-sample-10BT-chunked-500-HF4-torched"
+# DATASET = f"/embeddings/fineweb-edu-sample-10BT-chunked-500-HF4-torched"
+DATASET = f"/embeddings/fineweb-edu-sample-100BT-chunked-500-torched"
 GPU_CONCURRENCY = 1
 # CPU_CONCURRENCY = 16
 # GPU_CONFIG = gpu.A100(size="80GB")
