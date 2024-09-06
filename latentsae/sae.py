@@ -37,6 +37,9 @@ class ForwardOutput(NamedTuple):
     auxk_loss: Tensor
     """AuxK loss, if applicable."""
 
+    multi_topk_fvu: Tensor
+    """Multi-TopK FVU, if applicable."""
+
   
 
 class Sae(nn.Module):
@@ -75,7 +78,7 @@ class Sae(nn.Module):
         with open(path / "cfg.json", "r") as f:
             cfg_dict = json.load(f)
             d_in = cfg_dict.pop("d_in")
-            cfg = SaeConfig(**cfg_dict)
+            cfg = SaeConfig.from_dict(cfg_dict, drop_extra_fields=True)
 
         sae = Sae(d_in, cfg, device=device, decoder=decoder)
         load_model(
@@ -138,15 +141,10 @@ class Sae(nn.Module):
         sae_in = x.to(self.dtype) - self.b_dec
         out = self.encoder(sae_in)
 
-        return nn.functional.relu(out) if not self.cfg.signed else out
+        return nn.functional.relu(out)
 
     def select_topk(self, latents: Tensor) -> EncoderOutput:
         """Select the top-k latents."""
-        if self.cfg.signed:
-            _, top_indices = latents.abs().topk(self.cfg.k, sorted=False)
-            top_acts = latents.gather(dim=-1, index=top_indices)
-
-            return EncoderOutput(top_acts, top_indices)
 
         return EncoderOutput(*latents.topk(self.cfg.k, sorted=False))
 
@@ -162,9 +160,9 @@ class Sae(nn.Module):
 
     def forward(self, x: Tensor, dead_mask: Tensor | None = None) -> ForwardOutput:
         pre_acts = self.pre_acts(x)
-        top_acts, top_indices = self.select_topk(pre_acts)
 
         # Decode and compute residual
+        top_acts, top_indices = self.select_topk(pre_acts)
         sae_out = self.decode(top_acts, top_indices)
         e = sae_out - x
 
@@ -197,12 +195,21 @@ class Sae(nn.Module):
         l2_loss = e.pow(2).sum(0)
         fvu = torch.mean(l2_loss / total_variance)
 
+        if self.cfg.multi_topk:
+            top_acts, top_indices = pre_acts.topk(4 * self.cfg.k, sorted=False)
+            sae_out = self.decode(top_acts, top_indices)
+
+            multi_topk_fvu = (sae_out - x).pow(2).sum() / total_variance
+        else:
+            multi_topk_fvu = sae_out.new_tensor(0.0)
+
         return ForwardOutput(
             sae_out,
             top_acts,
             top_indices,
             fvu,
             auxk_loss,
+            multi_topk_fvu,
         )
 
     @torch.no_grad()
