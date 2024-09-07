@@ -30,12 +30,13 @@ See [notebooks/eval.ipynb](notebooks/eval.ipynb) for an example of how to use th
 
 ## Training
 
-The main way to train (that I've gotten working) is using modal_labs infrastructure 
+I focused on training with [Modal Labs](https://modal.com) GPUs, I found an A10G to be sufficiently fast & cheap.
+
 ```bash
 modal run train_modal.py --batch-size 512 --grad-acc-steps 4 --k 64 --expansion-factor 128
 ```
 
-I do have some initial code for training locally
+You can also train locally with a CPU or GPU.
 
 ```bash
 python train_local.py --batch-size 512 --grad-acc-steps 4 --k 64 --expansion-factor 128 
