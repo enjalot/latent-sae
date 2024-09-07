@@ -1,2 +1,5 @@
 from . import utils
-from . import sae
+from .sae import Sae
+
+# Make Sae available generally
+# __all__ = ['utils', 'Sae']

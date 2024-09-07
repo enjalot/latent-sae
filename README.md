@@ -10,7 +10,7 @@ This is essentially a fork of [EleutherAI/sae](https://github.com/EleutherAI/sae
 
 ```python
 # !pip install latentsae
-from latentsae.sae import Sae
+from latentsae import Sae
 sae_model = Sae.load_from_hub("enjalot/sae-nomic-text-v1.5-FineWeb-edu-100BT", "64_32")
 # or from disk
 sae_model = Sae.load_from_disk("models/sae_64_32.3mq7ckj7")
