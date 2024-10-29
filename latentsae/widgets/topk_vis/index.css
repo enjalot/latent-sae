@@ -6,7 +6,7 @@
   color: #111;
 }
 .sampleActivationBar {
-  width: 100%; 
+  width: 95%; 
   border: 1px solid lightgray;
   height: 14px;
   position: relative;
@@ -30,7 +30,7 @@
   align-items: center;
   justify-content: space-between;
   pointer-events: none;
-  width: 100%;
+  width: 95%;
   overflow: hidden;
 }
 
