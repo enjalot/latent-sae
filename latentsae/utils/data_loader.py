@@ -9,18 +9,41 @@ import os
 from collections import OrderedDict
 
 class ShardedEmbeddingDataset(Dataset):
-    def __init__(self, data_dir, cache_size=10, d_in=768, shuffle=False, warm_up_cache=True):
-        self.data_dir = data_dir
-        self.shard_files = sorted([f for f in os.listdir(data_dir) if f.endswith('.pt')])
+    def __init__(self, data_dir, cache_size=10, d_in=768, shuffle=False, warm_up_cache=True, file_type='pt'):
+        # Add file_type parameter
+        self.file_type = file_type.lower()
+        if self.file_type not in ['pt', 'npy']:
+            raise ValueError(f"Unsupported file_type: {self.file_type}")
+
+        # Convert single data_dir to list for consistent handling
+        self.data_dirs = [data_dir] if isinstance(data_dir, str) else data_dir
+        print("data dirs", self.data_dirs)
         self.cache_size = cache_size
         self.d_in = d_in
         self.cache = OrderedDict()
         self.shuffle = shuffle
 
+        # Collect files from all directories
+        self.shard_files = []
+        self.dir_indices = []  # Keep track of which directory each file belongs to
+        for dir_idx, directory in enumerate(self.data_dirs):
+            files = sorted([f for f in os.listdir(directory) if f.endswith(f'.{self.file_type}')])
+            self.shard_files.extend([(directory, f) for f in files])
+            self.dir_indices.extend([dir_idx] * len(files))
+
+        print("shard files", len(self.shard_files))
+        # After collecting files but before calculating sizes, shuffle the shard files if needed
+        if shuffle:
+            combined = list(zip(self.shard_files, self.dir_indices))
+            random.shuffle(combined)
+            self.shard_files, self.dir_indices = zip(*combined)
+            # self.shard_files = list(self.shard_files)
+            # self.dir_indices = list(self.dir_indices)
+
         # Calculate sizes without loading data
         self.shard_sizes = []
-        for f in self.shard_files:
-            tensor_size = os.path.getsize(os.path.join(data_dir, f)) // (self.d_in * 4)  # Assuming float32
+        for dir_path, f in self.shard_files:
+            tensor_size = os.path.getsize(os.path.join(dir_path, f)) // (self.d_in * 4)
             self.shard_sizes.append(tensor_size)
         
         self.cumulative_sizes = np.cumsum(self.shard_sizes)
@@ -37,8 +60,20 @@ class ShardedEmbeddingDataset(Dataset):
         return self.total_size
 
     def load_shard(self, shard_idx):
-        file_path = os.path.join(self.data_dir, self.shard_files[shard_idx])
-        data = torch.load(file_path)
+        dir_path, file_name = self.shard_files[shard_idx]
+        file_path = os.path.join(dir_path, file_name)
+        size = self.shard_sizes[shard_idx]
+        
+        if self.file_type == 'pt':
+            data = torch.load(file_path)
+        else:  # npy
+            print("loading npy", file_path)
+            embeddings = np.memmap(file_path, 
+                      dtype='float32', 
+                      mode='r', 
+                      shape=(size, self.d_in))
+            data = torch.from_numpy(embeddings.copy())  # Copy to ensure it's writable if we need to shuffle
+            
         if self.shuffle:
             data = data[torch.randperm(data.shape[0])]
         return data

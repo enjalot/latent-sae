@@ -1,5 +1,5 @@
 """
-modal run train_modal.py --batch-size 512 --grad-acc-steps 4 --k 128 --expansion-factor 32
+modal run train_modal.py --batch-size 512 --grad-acc-steps 4 --k 64 --expansion-factor 32
 """
 from latentsae.trainer import SaeTrainer, TrainConfig
 from latentsae.utils.data_loader import StreamingEmbeddingDataset, ShardedEmbeddingDataset
@@ -9,7 +9,17 @@ from modal import App, Image, Secret, Volume, build, enter, exit, gpu, method
 
 # DATASET = f"/embeddings/fineweb-edu-sample-10BT-chunked-500-HF4"
 # DATASET = f"/embeddings/fineweb-edu-sample-10BT-chunked-500-HF4-torched"
-DATASET = f"/embeddings/fineweb-edu-sample-100BT-chunked-500-torched"
+# DATASET = f"/embeddings/fineweb-edu-sample-100BT-chunked-500-torched"
+DATASET = [
+    # f"/embeddings/fineweb-edu-sample-10BT-chunked-500-all-MiniLM-L6-v2/train",
+    # f"/embeddings/RedPajama-Data-V2-sample-10B-chunked-500-all-MiniLM-L6-v2/train",
+    f"/embeddings/fineweb-edu-sample-10BT-chunked-120-all-MiniLM-L6-v2/train",
+    f"/embeddings/RedPajama-Data-V2-sample-10B-chunked-120-all-MiniLM-L6-v2/train",
+    # f"/embeddings/pile-uncopyrighted-chunked-500-all-MiniLM-L6-v2/train",
+    f"/embeddings/pile-uncopyrighted-chunked-120-all-MiniLM-L6-v2/train",
+]
+WANDB_PROJECT = "sae-all-minilm-l6-v2"
+D_IN = 384
 GPU_CONCURRENCY = 1
 # CPU_CONCURRENCY = 16
 # GPU_CONFIG = gpu.A100(size="80GB")
@@ -88,7 +98,8 @@ class RemoteTrainer:
         # shuffled = SimpleShuffleDataset(dataset, buffer_size=1000000)
         # shuffled = ThreadedShuffleDataset(dataset, buffer_size=1000000)
         # shuffled = ThreadedBufferDataset(dataset, buffer_size=200000)
-        dataset = ShardedEmbeddingDataset(args.dataset, cache_size=10, d_in=768, shuffle=True, warm_up_cache=False)
+        # dataset = ShardedEmbeddingDataset(args.dataset, cache_size=10, d_in=768, shuffle=True, warm_up_cache=False)
+        dataset = ShardedEmbeddingDataset(args.dataset, cache_size=10, d_in=D_IN, shuffle=True, warm_up_cache=False, file_type='npy')
         trainer = SaeTrainer(args, dataset, self.device)
         trainer.fit()
 
@@ -110,7 +121,7 @@ def run(batch_size: int, expansion_factor: int, k: int, grad_acc_steps: int):
         embedding_column: str = "embedding"
         """Column to use for embedding."""
 
-        wandb_project: str = "sae-fw-modal-nomic-text-v1.5"
+        wandb_project: str = WANDB_PROJECT
         """Wandb project name."""
 
      # Filter out the script name and 'run' command if present
@@ -118,6 +129,8 @@ def run(batch_size: int, expansion_factor: int, k: int, grad_acc_steps: int):
     
     args = parse(RunConfig, args=args_to_parse)
     args.dataset = DATASET
+    args.d_in = D_IN
+    # args.lr = 2e-6
     # the trainer saves in the run_name directory
     args.checkpoints_directory = "/checkpoints"
 

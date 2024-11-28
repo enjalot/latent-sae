@@ -171,6 +171,11 @@ class SaeTrainer:
 
                 # Save memory by chunking the activations
                 for chunk in hiddens.chunk(self.cfg.micro_acc_steps):
+                    # Add numerical stability checks for input
+                    if torch.isnan(chunk).any():
+                        print(f"WARNING: NaN detected in input chunk")
+                        continue  # Skip this chunk
+                        
                     out = wrapped(
                         chunk,
                         dead_mask=(
@@ -181,15 +186,25 @@ class SaeTrainer:
                         ),
                     )
 
+                    # Add numerical stability check for FVU
+                    if torch.isnan(out.fvu):
+                        print(f"WARNING: NaN detected in FVU")
+                        print(f"FVU value: {out.fvu}")
+                        print(f"Chunk stats - min: {chunk.min()}, max: {chunk.max()}, mean: {chunk.mean()}")
+                        continue  # Skip this iteration
+
+                    # Add small epsilon to avoid division by zero
+                    fvu = out.fvu.clamp(min=1e-6)
                     avg_fvu[name] += float(
-                        self.maybe_all_reduce(out.fvu.detach()) / denom
+                        self.maybe_all_reduce(fvu.detach()) / denom
                     )
+
                     if self.cfg.auxk_alpha > 0:
                         avg_auxk_loss[name] += float(
                             self.maybe_all_reduce(out.auxk_loss.detach()) / denom
                         )
 
-                    loss = out.fvu + self.cfg.auxk_alpha * out.auxk_loss
+                    loss = fvu + self.cfg.auxk_alpha * out.auxk_loss
                     loss.div(acc_steps).backward()
 
                     # Update the did_fire mask
@@ -198,6 +213,19 @@ class SaeTrainer:
 
                 # Clip gradient norm independently for each SAE
                 torch.nn.utils.clip_grad_norm_(raw.parameters(), 1.0)
+
+                # After backward() but before optimizer.step()
+                for name, sae in self.saes.items():
+                    total_norm = 0.0
+                    for p in sae.parameters():
+                        if p.grad is not None:
+                            param_norm = p.grad.detach().data.norm(2)
+                            total_norm += param_norm.item() ** 2
+                    total_norm = total_norm ** 0.5
+                    if total_norm > 10:  # This threshold might need adjustment
+                        print(f"Warning: High gradient norm ({total_norm:.2f}) detected for {name}")
+                    if torch.isnan(torch.tensor(total_norm)):
+                        print(f"Warning: NaN gradient detected for {name}")
 
             # Check if we need to actually do a training step
             step, substep = divmod(i + 1, self.cfg.grad_acc_steps)
