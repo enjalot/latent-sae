@@ -38,6 +38,11 @@ setup(
     },
     packages=find_packages(),
     install_requires=required,
+    package_data={
+        'latentsae.widgets.topk_vis': ['*.js', '*.css'],
+        'latentsae.widgets.embedding_vis': ['*.js', '*.css'],
+    },
+    include_package_data=True,
     # entry_points={
     #     'console_scripts': [
     #     ],

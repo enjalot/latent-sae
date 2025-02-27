@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Union, List
 
 from simple_parsing import Serializable, list_field
 
@@ -41,7 +42,7 @@ class TrainConfig(Serializable):
     micro_acc_steps: int = 1
     """Chunk the activations into this number of microbatches for SAE training."""
 
-    lr: float | None = None
+    lr: Union[float, None] = None
     """Base LR. If None, it is automatically chosen based on the number of latents."""
 
     lr_warmup_steps: int = 1000
@@ -70,7 +71,7 @@ class TrainConfig(Serializable):
     checkpoints_directory: str = "/checkpoints"
 
     log_to_wandb: bool = True
-    run_name: str | None = None
+    run_name: Union[str, None] = None
     wandb_log_frequency: int = 1
 
     def __post_init__(self):

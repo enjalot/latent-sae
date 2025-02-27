@@ -1,7 +1,7 @@
 # taking heavily from https://github.com/EleutherAI/sae/blob/main/sae/sae.py
 import json
 
-from typing import NamedTuple
+from typing import NamedTuple, Union, Optional
 from pathlib import Path
 
 import einops
@@ -47,8 +47,8 @@ class Sae(nn.Module):
         self,
         d_in: int,
         cfg: SaeConfig,
-        device: str | torch.device = "cpu",
-        dtype: torch.dtype | None = None,
+        device: Union[str, torch.device] = "cpu",
+        dtype: Optional[torch.dtype] = None,
         *,
         decoder: bool = True,
     ):
@@ -70,8 +70,8 @@ class Sae(nn.Module):
 
     @staticmethod
     def load_from_disk(
-        path: Path | str,
-        device: str | torch.device = "cpu",
+        path: Union[Path, str],
+        device: Union[str, torch.device] = "cpu",
         *,
         decoder: bool = True,
     ) -> "Sae":
@@ -95,8 +95,8 @@ class Sae(nn.Module):
     @staticmethod
     def load_from_hub(
         name: str,
-        k_expansion: str | None = None,
-        device: str | torch.device = "cpu",
+        k_expansion: Optional[str] = None,
+        device: Union[str, torch.device] = "cpu",
         *,
         decoder: bool = True,
     ) -> "Sae":
@@ -116,7 +116,7 @@ class Sae(nn.Module):
 
         return Sae.load_from_disk(repo_path, device=device, decoder=decoder)
 
-    def save_to_disk(self, path: Path | str):
+    def save_to_disk(self, path: Union[Path, str]):
         path = Path(path)
         path.mkdir(parents=True, exist_ok=True)
 
@@ -160,7 +160,7 @@ class Sae(nn.Module):
         y = decoder_impl(top_indices, top_acts.to(self.dtype), self.W_dec.mT)
         return y + self.b_dec
 
-    def forward(self, x: Tensor, dead_mask: Tensor | None = None) -> ForwardOutput:
+    def forward(self, x: Tensor, dead_mask: Optional[Tensor] = None) -> ForwardOutput:
         pre_acts = self.pre_acts(x)
 
         # Decode and compute residual
