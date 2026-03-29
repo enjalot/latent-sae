@@ -104,6 +104,18 @@ class SaeTrainer:
 
         acc_steps = cfg.grad_acc_steps * cfg.micro_acc_steps
         denom = acc_steps * cfg.wandb_log_frequency
+        total_batches = len(dl)
+
+        # -- K-annealing setup --
+        # Start with more active features and linearly decrease to target k.
+        # More active features early on = richer gradient signal for decoder weights,
+        # then tighten sparsity as features stabilize.
+        k_anneal = raw.cfg.k_anneal and raw.cfg.sae_type.value != "jumprelu"  # JumpReLU learns its own sparsity
+        if k_anneal:
+            k_start = raw.cfg.k_anneal_start or (4 * raw.cfg.k)
+            k_end = raw.cfg.k
+            k_anneal_steps = int(total_batches * raw.cfg.k_anneal_pct)
+            print(f"K-annealing: {k_start} -> {k_end} over {k_anneal_steps} batches ({raw.cfg.k_anneal_pct:.0%} of training)")
 
         for i, batch in enumerate(pbar):
             num_tokens_in_step += batch.numel()
@@ -118,6 +130,14 @@ class SaeTrainer:
             if raw.cfg.normalize_decoder:
                 raw.set_decoder_norm_to_unit_norm()
 
+            # Compute current k for k-annealing (linear interpolation from k_start to k_end)
+            current_k = None
+            if k_anneal:
+                if i < k_anneal_steps:
+                    frac = i / max(k_anneal_steps, 1)
+                    current_k = int(k_start + (k_end - k_start) * frac)
+                # else: None means use default cfg.k
+
             for chunk in hiddens.chunk(cfg.micro_acc_steps):
                 if torch.isnan(chunk).any():
                     continue
@@ -130,6 +150,7 @@ class SaeTrainer:
                             if cfg.auxk_alpha > 0
                             else None
                         ),
+                        k_override=current_k,
                     )
 
                 if torch.isnan(out.fvu):
@@ -143,6 +164,20 @@ class SaeTrainer:
                 loss = out.fvu + cfg.auxk_alpha * out.auxk_loss
                 if raw.cfg.multi_topk:
                     loss = loss + out.multi_topk_fvu
+
+                # -- Tilted ERM --
+                # Instead of minimizing mean loss, we minimize the "tilted" risk:
+                #   (1/t) * log(mean(exp(t * per_sample_loss)))
+                # For small t this ≈ mean(loss) + (t/2)*var(loss), which gently
+                # upweights samples the SAE struggles to reconstruct. This prevents
+                # the SAE from only learning features for common/easy patterns while
+                # ignoring rare but informative inputs.
+                if cfg.tilted_erm_tilt > 0:
+                    t = cfg.tilted_erm_tilt
+                    # Compute per-sample reconstruction error for tilting
+                    per_sample_mse = (out.sae_out - chunk).pow(2).sum(dim=-1)  # [batch]
+                    # Tilted risk: logsumexp is numerically stable version of log(mean(exp(...)))
+                    loss = torch.logsumexp(t * per_sample_mse, dim=0) / t - torch.log(torch.tensor(per_sample_mse.shape[0], dtype=loss.dtype, device=loss.device)) / t
 
                 scaler.scale(loss / acc_steps).backward()
 
@@ -175,6 +210,8 @@ class SaeTrainer:
                         "dead_pct": dead_mask.float().mean().item(),
                         "lr": self.optimizer.param_groups[0]["lr"],
                     }
+                    if k_anneal and current_k is not None:
+                        info["k_current"] = current_k
                     if cfg.auxk_alpha > 0:
                         info["auxk_loss"] = avg_auxk_loss
 

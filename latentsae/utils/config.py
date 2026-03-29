@@ -49,6 +49,21 @@ class SaeConfig(Serializable):
     sparsity_penalty: float = 1e-3
     """L0 sparsity penalty coefficient for JumpReLU."""
 
+    # -- K-annealing --
+    # From chanind's autonomous SAE research: start training with a higher k and
+    # linearly decrease to the target k. Gives the model an easier learning signal
+    # early on — more features active means richer gradients for the decoder.
+    # Similar in spirit to JumpReLU's learned sparsity (start loose, tighten).
+    # See: lesswrong.com/posts/rbqJoxFZtae9x93mx
+    k_anneal: bool = False
+    """Enable k-annealing: linearly decrease k from k_anneal_start to k during training."""
+
+    k_anneal_start: int = 0
+    """Starting k for annealing. If 0, defaults to 4 * k."""
+
+    k_anneal_pct: float = 0.3
+    """Fraction of training to anneal k over (0.3 = anneal for first 30% of steps)."""
+
 
 @dataclass
 class TrainConfig(Serializable):
@@ -80,6 +95,16 @@ class TrainConfig(Serializable):
 
     auxk_alpha: float = 0.0
     """Weight of the auxiliary loss term."""
+
+    # -- Tilted ERM --
+    # Tilted Empirical Risk Minimization upweights high-loss samples by replacing
+    # the mean loss with: (1/t) * log(mean(exp(t * loss_i))). With small t (~2e-3),
+    # this gently focuses training on harder-to-reconstruct inputs, preventing the
+    # SAE from only learning features for the most common/easy patterns.
+    # Found effective by chanind's autonomous SAE research.
+    # See: Li et al. "Tilted ERM" (NeurIPS 2021), lesswrong.com/posts/rbqJoxFZtae9x93mx
+    tilted_erm_tilt: float = 0.0
+    """Tilted ERM tilt parameter. 0 = disabled, ~2e-3 = gentle upweighting of hard samples."""
 
     dead_feature_threshold: int = 10_000_000
     """Number of tokens after which a feature is considered dead."""

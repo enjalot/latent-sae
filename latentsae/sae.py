@@ -169,6 +169,10 @@ class Sae(nn.Module):
 
     def encode_gated(self, x: Tensor) -> EncoderOutput:
         """Gated SAE encoding: separate gate (which features) and magnitude (how much)."""
+        return self._encode_gated_with_k(x, self.cfg.k)
+
+    def _encode_gated_with_k(self, x: Tensor, k: int) -> EncoderOutput:
+        """Gated encoding with explicit k (supports k-annealing)."""
         sae_in = x.to(self.dtype) - self.b_dec
         # Gate determines which features fire
         gate_logits = self.W_gate(sae_in)
@@ -176,7 +180,7 @@ class Sae(nn.Module):
         mag = self.W_mag(sae_in) * self.r_mag.exp()
 
         # Select top-k by gate logits, use magnitude for activation values
-        top_values, top_indices = gate_logits.topk(self.cfg.k, sorted=False)
+        top_values, top_indices = gate_logits.topk(k, sorted=False)
         top_mag = mag.gather(-1, top_indices)
         # Gate with sigmoid, activation is gated magnitude (ReLU for non-negativity)
         top_acts = nn.functional.relu(top_mag * torch.sigmoid(top_values))
@@ -223,13 +227,16 @@ class Sae(nn.Module):
         y = decoder_impl(top_indices, top_acts.to(self.dtype), self.W_dec.mT)
         return y + self.b_dec
 
-    def forward(self, x: Tensor, dead_mask: Optional[Tensor] = None) -> ForwardOutput:
+    def forward(self, x: Tensor, dead_mask: Optional[Tensor] = None, k_override: Optional[int] = None) -> ForwardOutput:
+        # k_override allows the trainer to dynamically change k (used for k-annealing)
+        k = k_override or self.cfg.k
+
         # Encode
         if self.cfg.sae_type == SaeType.TOPK:
             pre_acts = self.pre_acts(x)
-            top_acts, top_indices = pre_acts.topk(self.cfg.k, sorted=False)
+            top_acts, top_indices = pre_acts.topk(k, sorted=False)
         elif self.cfg.sae_type == SaeType.GATED:
-            top_acts, top_indices = self.encode_gated(x)
+            top_acts, top_indices = self._encode_gated_with_k(x, k)
             pre_acts = None  # Gated SAE doesn't use pre_acts for auxk
         elif self.cfg.sae_type == SaeType.JUMPRELU:
             top_acts, top_indices = self.encode_jumprelu(x)
@@ -269,7 +276,7 @@ class Sae(nn.Module):
 
         # Multi-TopK auxiliary loss (TopK only)
         if self.cfg.multi_topk and pre_acts is not None:
-            mt_acts, mt_indices = pre_acts.topk(4 * self.cfg.k, sorted=False)
+            mt_acts, mt_indices = pre_acts.topk(4 * k, sorted=False)
             mt_out = self.decode(mt_acts, mt_indices)
             multi_topk_fvu = (mt_out - x).pow(2).sum() / total_variance
         else:
