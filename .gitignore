@@ -10,3 +10,4 @@ models
 build
 dist
 experiments/results/
+experiments/local_bench_data/
