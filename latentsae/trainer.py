@@ -47,10 +47,10 @@ class SaeTrainer:
             cosine = CosineAnnealingLR(self.optimizer, T_max=max(total_steps - cfg.lr_warmup_steps, 1))
             self.lr_scheduler = SequentialLR(self.optimizer, [warmup, cosine], milestones=[cfg.lr_warmup_steps])
         else:
-            from transformers import get_linear_schedule_with_warmup
-            self.lr_scheduler = get_linear_schedule_with_warmup(
-                self.optimizer, cfg.lr_warmup_steps, total_steps
-            )
+            from torch.optim.lr_scheduler import LinearLR, SequentialLR
+            warmup = LinearLR(self.optimizer, start_factor=1e-8, total_iters=cfg.lr_warmup_steps)
+            decay = LinearLR(self.optimizer, start_factor=1.0, end_factor=0.0, total_iters=max(total_steps - cfg.lr_warmup_steps, 1))
+            self.lr_scheduler = SequentialLR(self.optimizer, [warmup, decay], milestones=[cfg.lr_warmup_steps])
 
     def fit(self):
         torch.set_float32_matmul_precision("high")
@@ -120,7 +120,7 @@ class SaeTrainer:
         # then tighten sparsity as features stabilize.
         k_anneal = raw.cfg.k_anneal and raw.cfg.sae_type.value != "jumprelu"  # JumpReLU learns its own sparsity
         if k_anneal:
-            k_start = raw.cfg.k_anneal_start or (4 * raw.cfg.k)
+            k_start = min(raw.cfg.k_anneal_start or (4 * raw.cfg.k), raw.num_latents)
             k_end = raw.cfg.k
             k_anneal_steps = int(total_batches * raw.cfg.k_anneal_pct)
             print(f"K-annealing: {k_start} -> {k_end} over {k_anneal_steps} batches ({raw.cfg.k_anneal_pct:.0%} of training)")
@@ -180,7 +180,12 @@ class SaeTrainer:
                 else:
                     recon_loss = out.fvu
 
-                loss = recon_loss + cfg.auxk_alpha * out.auxk_loss
+                # JumpReLU stores its sparsity penalty in auxk_loss independently of auxk_alpha.
+                # TopK/Gated use auxk_loss for dead feature revival, scaled by auxk_alpha.
+                if raw.cfg.sae_type.value == "jumprelu":
+                    loss = recon_loss + out.auxk_loss
+                else:
+                    loss = recon_loss + cfg.auxk_alpha * out.auxk_loss
                 if raw.cfg.multi_topk:
                     loss = loss + out.multi_topk_fvu
 
@@ -193,11 +198,13 @@ class SaeTrainer:
                 did_fire[out.latent_indices.flatten()] = True
                 self._maybe_all_reduce(did_fire, "max")
 
-            torch.nn.utils.clip_grad_norm_(raw.parameters(), 1.0)
-
             # Gradient accumulation step
             step, substep = divmod(i + 1, cfg.grad_acc_steps)
             if substep == 0:
+                # Unscale before clipping so the threshold is consistent regardless of AMP scale
+                scaler.unscale_(self.optimizer)
+                torch.nn.utils.clip_grad_norm_(raw.parameters(), 1.0)
+
                 if raw.cfg.normalize_decoder:
                     raw.remove_gradient_parallel_to_decoder_directions()
 
