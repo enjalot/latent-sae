@@ -1,0 +1,4 @@
+# TopK vs Gated vs JumpReLU at fixed k=64, 32x expansion.
+# 3 configs total.
+sweep:
+  sae.sae_type: [topk, gated, jumprelu]

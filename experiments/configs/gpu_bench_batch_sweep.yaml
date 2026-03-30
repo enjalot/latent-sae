@@ -1,0 +1,10 @@
+# Sweep batch sizes to find throughput sweet spot per GPU.
+# Run once per GPU type:
+#   modal run train_modal.py --config experiments/configs/gpu_bench_base.yaml \
+#     --sweep experiments/configs/gpu_bench_batch_sweep.yaml \
+#     --gpu-type t4
+#   (repeat for a10g, a100_40gb)
+#
+# 5 configs per GPU = 15 total runs, ~5-15 min each.
+sweep:
+  train.batch_size: [128, 256, 512, 1024, 2048]

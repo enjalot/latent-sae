@@ -1,0 +1,5 @@
+# K-annealing x multi-topk combinations (TopK only).
+# 4 configs: neither, k_anneal only, multi_topk only, both.
+sweep:
+  sae.k_anneal: [false, true]
+  sae.multi_topk: [false, true]

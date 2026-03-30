@@ -1,0 +1,7 @@
+# Sweep model sizes to measure memory scaling and throughput vs model size.
+# Run once per GPU type (same pattern as batch sweep).
+#
+# 4 configs per GPU = 12 total runs.
+# At d_in=768, 128x expansion = ~151M params — may OOM on T4 (useful data point).
+sweep:
+  sae.expansion_factor: [8, 32, 64, 128]

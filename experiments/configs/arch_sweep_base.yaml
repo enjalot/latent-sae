@@ -1,0 +1,37 @@
+name: arch_sweep
+description: >
+  SAE architecture comparison at fixed compute budget.
+  Uses MiniLM 3-source mix (FineWeb + RedPajama + Pile).
+  Ready to run once data mix is finalized — update datasets paths as needed.
+
+data:
+  datasets:
+    - /embeddings/fineweb-edu-sample-10BT-chunked-120-all-MiniLM-L6-v2/train
+    - /embeddings/RedPajama-Data-V2-sample-10B-chunked-120-all-MiniLM-L6-v2/train
+    - /embeddings/pile-uncopyrighted-chunked-120-all-MiniLM-L6-v2/train
+  d_in: 384
+  file_type: npy
+
+sae:
+  sae_type: topk
+  expansion_factor: 32
+  k: 64
+
+train:
+  batch_size: 512
+  grad_acc_steps: 4
+  lr_warmup_steps: 1000
+  use_amp: true
+  save_every: 1000
+
+logging:
+  use_wandb: true
+  wandb_project: latent-sae-arch-sweep
+  wandb_tags:
+    - arch_sweep
+  wandb_group: arch_sweep
+  results_dir: experiments/results
+  save_model: true
+
+infra:
+  gpu_type: a10g

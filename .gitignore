@@ -9,3 +9,5 @@ models
 *.egg-info
 build
 dist
+experiments/results/
+experiments/local_bench_data/
