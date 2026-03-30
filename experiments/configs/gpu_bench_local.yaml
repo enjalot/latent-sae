@@ -1,0 +1,29 @@
+name: gpu_bench_local
+description: "Local M2 Max benchmark — same 100K MiniLM subset, batch size sweep"
+
+data:
+  datasets:
+    - experiments/local_bench_data/train
+  d_in: 384
+  file_type: npy
+  n_samples: 100000
+
+sae:
+  sae_type: topk
+  expansion_factor: 32
+  k: 64
+
+train:
+  batch_size: 512
+  grad_acc_steps: 1
+  lr_warmup_steps: 50
+  use_amp: false
+  save_every: 50000
+
+logging:
+  use_wandb: false
+  results_dir: experiments/results
+  save_model: false
+
+infra:
+  gpu_type: mps

@@ -301,7 +301,8 @@ class Sae(nn.Module):
     @torch.no_grad()
     def remove_gradient_parallel_to_decoder_directions(self):
         assert self.W_dec is not None, "Decoder weight was not initialized."
-        assert self.W_dec.grad is not None
+        if self.W_dec.grad is None:
+            return
 
         parallel_component = einops.einsum(
             self.W_dec.grad,

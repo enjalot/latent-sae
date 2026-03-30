@@ -118,3 +118,6 @@ class TrainConfig(Serializable):
     wandb_project: str = "latent-sae"
     run_name: Union[str, None] = None
     wandb_log_frequency: int = 1
+
+    gpu_type: str = ""
+    """GPU type for cost estimation: t4, a10g, a100_40gb. Empty = unknown."""

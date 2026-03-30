@@ -1,0 +1,29 @@
+name: smoke_test
+description: "Quick pipeline validation — runs locally on CPU/MPS in ~1 minute"
+
+data:
+  datasets:
+    - ./checkpoints  # Will use whatever small .pt files are available locally
+  d_in: 384
+  file_type: pt
+  n_samples: 10000
+
+sae:
+  sae_type: topk
+  expansion_factor: 8
+  k: 32
+
+train:
+  batch_size: 256
+  grad_acc_steps: 1
+  lr_warmup_steps: 50
+  use_amp: false
+  save_every: 5000
+
+logging:
+  use_wandb: false
+  results_dir: experiments/results
+  save_model: false
+
+infra:
+  gpu_type: ""

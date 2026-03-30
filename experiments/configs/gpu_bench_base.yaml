@@ -1,0 +1,35 @@
+name: gpu_bench
+description: >
+  GPU benchmark — measure throughput, memory, and wall clock across T4/A10G/A100.
+  Uses 100K sample subset for fast runs (5-15 min each).
+  Run 3x with --override infra.gpu_type=t4/a10g/a100_40gb
+
+data:
+  datasets:
+    - /embeddings/fineweb-edu-sample-10BT-chunked-120-all-MiniLM-L6-v2/train
+  d_in: 384
+  file_type: npy
+  n_samples: 100000
+
+sae:
+  sae_type: topk
+  expansion_factor: 32
+  k: 64
+
+train:
+  batch_size: 512
+  grad_acc_steps: 1
+  lr_warmup_steps: 50
+  use_amp: true
+  save_every: 50000  # Don't checkpoint during benchmarks
+
+logging:
+  use_wandb: true
+  wandb_project: latent-sae-gpu-bench
+  wandb_tags:
+    - gpu_bench
+  wandb_group: gpu_bench
+  results_dir: experiments/results
+
+infra:
+  gpu_type: a10g

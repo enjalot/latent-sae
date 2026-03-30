@@ -1,9 +1,10 @@
+import time
 from dataclasses import asdict
 
 import torch
 import torch.distributed as dist
 from torch import Tensor
-from torch.amp import GradScaler, autocast
+from torch.cuda.amp import GradScaler, autocast
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, Dataset
 from tqdm.auto import tqdm
@@ -11,6 +12,8 @@ from tqdm.auto import tqdm
 from .sae import Sae
 from .utils.config import TrainConfig, LRSchedule
 from .utils.eleuther import geometric_median
+
+GPU_HOURLY_RATES = {"t4": 0.59, "a10g": 1.10, "a100_40gb": 2.10}
 
 
 class SaeTrainer:
@@ -97,6 +100,11 @@ class SaeTrainer:
 
         avg_auxk_loss = 0.0
         avg_fvu = 0.0
+        avg_loss = 0.0
+        avg_multi_topk_fvu = 0.0
+        last_log_time = time.time()
+        training_start = time.time()
+        num_params = sum(p.numel() for p in self.sae.parameters())
 
         use_amp = cfg.use_amp and self.device.type == "cuda"
         scaler = GradScaler(enabled=use_amp)
@@ -142,7 +150,7 @@ class SaeTrainer:
                 if torch.isnan(chunk).any():
                     continue
 
-                with autocast(device_type=self.device.type, dtype=torch.float16, enabled=use_amp):
+                with autocast(enabled=use_amp):
                     out = sae(
                         chunk,
                         dead_mask=(
@@ -161,23 +169,24 @@ class SaeTrainer:
                 if cfg.auxk_alpha > 0:
                     avg_auxk_loss += float(self._maybe_all_reduce(out.auxk_loss.detach()) / denom)
 
-                loss = out.fvu + cfg.auxk_alpha * out.auxk_loss
+                # -- Reconstruction loss: standard FVU or tilted ERM --
+                # Tilted ERM replaces mean loss with (1/t)*log(mean(exp(t*loss_i))),
+                # which gently upweights hard-to-reconstruct samples for small t (~2e-3).
+                if cfg.tilted_erm_tilt > 0:
+                    t = cfg.tilted_erm_tilt
+                    per_sample_mse = (out.sae_out - chunk).pow(2).sum(dim=-1)
+                    n = torch.tensor(per_sample_mse.shape[0], dtype=per_sample_mse.dtype, device=per_sample_mse.device)
+                    recon_loss = (torch.logsumexp(t * per_sample_mse, dim=0) - torch.log(n)) / t
+                else:
+                    recon_loss = out.fvu
+
+                loss = recon_loss + cfg.auxk_alpha * out.auxk_loss
                 if raw.cfg.multi_topk:
                     loss = loss + out.multi_topk_fvu
 
-                # -- Tilted ERM --
-                # Instead of minimizing mean loss, we minimize the "tilted" risk:
-                #   (1/t) * log(mean(exp(t * per_sample_loss)))
-                # For small t this ≈ mean(loss) + (t/2)*var(loss), which gently
-                # upweights samples the SAE struggles to reconstruct. This prevents
-                # the SAE from only learning features for common/easy patterns while
-                # ignoring rare but informative inputs.
-                if cfg.tilted_erm_tilt > 0:
-                    t = cfg.tilted_erm_tilt
-                    # Compute per-sample reconstruction error for tilting
-                    per_sample_mse = (out.sae_out - chunk).pow(2).sum(dim=-1)  # [batch]
-                    # Tilted risk: logsumexp is numerically stable version of log(mean(exp(...)))
-                    loss = torch.logsumexp(t * per_sample_mse, dim=0) / t - torch.log(torch.tensor(per_sample_mse.shape[0], dtype=loss.dtype, device=loss.device)) / t
+                avg_loss += float(self._maybe_all_reduce(loss.detach()) / denom)
+                if raw.cfg.multi_topk:
+                    avg_multi_topk_fvu += float(self._maybe_all_reduce(out.multi_topk_fvu.detach()) / denom)
 
                 scaler.scale(loss / acc_steps).backward()
 
@@ -204,19 +213,32 @@ class SaeTrainer:
                     did_fire.zero_()
 
                 if wandb and (step + 1) % cfg.wandb_log_frequency == 0:
+                    now = time.time()
+                    elapsed = max(now - last_log_time, 1e-6)
+                    samples_logged = cfg.batch_size * cfg.wandb_log_frequency
+                    last_log_time = now
+
                     dead_mask = num_tokens_since_fired > cfg.dead_feature_threshold
                     info = {
                         "fvu": avg_fvu,
+                        "loss_total": avg_loss,
                         "dead_pct": dead_mask.float().mean().item(),
                         "lr": self.optimizer.param_groups[0]["lr"],
+                        "throughput_samples_sec": samples_logged / elapsed,
                     }
                     if k_anneal and current_k is not None:
                         info["k_current"] = current_k
                     if cfg.auxk_alpha > 0:
                         info["auxk_loss"] = avg_auxk_loss
+                    if raw.cfg.multi_topk:
+                        info["multi_topk_fvu"] = avg_multi_topk_fvu
+                    if self.device.type == "cuda":
+                        info["gpu_memory_peak_mb"] = torch.cuda.max_memory_allocated() / 1e6
 
                     avg_auxk_loss = 0.0
                     avg_fvu = 0.0
+                    avg_loss = 0.0
+                    avg_multi_topk_fvu = 0.0
 
                     if rank_zero:
                         wandb.log(info, step=step)
@@ -227,6 +249,24 @@ class SaeTrainer:
                     self._save(wandb)
 
         self._save(wandb)
+
+        # Log final training summary
+        total_time = time.time() - training_start
+        if wandb and rank_zero:
+            summary = {
+                "total_training_time_s": total_time,
+                "total_samples": self.num_examples,
+                "model_params": num_params,
+                "avg_throughput_samples_sec": self.num_examples / max(total_time, 1),
+            }
+            if cfg.gpu_type and cfg.gpu_type in GPU_HOURLY_RATES:
+                summary["cost_estimate_usd"] = total_time * GPU_HOURLY_RATES[cfg.gpu_type] / 3600
+            wandb.log(summary)
+            wandb.summary.update(summary)
+        if rank_zero:
+            print(f"Training complete: {self.num_examples:_} samples in {total_time:.1f}s "
+                  f"({self.num_examples / max(total_time, 1):.0f} samples/sec)")
+
         pbar.close()
 
     def _save(self, wandb=None):
