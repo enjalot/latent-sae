@@ -105,6 +105,8 @@ class SaeTrainer:
         last_log_time = time.time()
         training_start = time.time()
         num_params = sum(p.numel() for p in self.sae.parameters())
+        fire_ema = torch.zeros(raw.num_latents, device=self.device)
+        fire_ema_decay = 0.99
 
         use_amp = cfg.use_amp and self.device.type == "cuda"
         scaler = GradScaler(enabled=use_amp)
@@ -187,7 +189,19 @@ class SaeTrainer:
                 else:
                     loss = recon_loss + cfg.auxk_alpha * out.auxk_loss
                 if raw.cfg.multi_topk:
-                    loss = loss + out.multi_topk_fvu
+                    loss = loss + out.multi_topk_fvu / 8  # Gao et al.: L(k) + L(4k)/8
+
+                # Decoder decorrelation: penalize similar decoder weight vectors
+                if raw.cfg.decorr_alpha > 0:
+                    W = raw.W_dec / (raw.W_dec.norm(dim=1, keepdim=True) + 1e-8)
+                    corr = W @ W.T
+                    corr.fill_diagonal_(0)
+                    loss = loss + raw.cfg.decorr_alpha * corr.abs().mean()
+
+                # Fire rate penalty: penalize features exceeding max_fire_rate
+                if raw.cfg.max_fire_rate > 0 and i > 100:
+                    excess = torch.nn.functional.relu(fire_ema - raw.cfg.max_fire_rate)
+                    loss = loss + raw.cfg.fire_rate_penalty * excess.pow(2).sum()
 
                 avg_loss += float(self._maybe_all_reduce(loss.detach()) / denom)
                 if raw.cfg.multi_topk:
@@ -197,6 +211,12 @@ class SaeTrainer:
 
                 did_fire[out.latent_indices.flatten()] = True
                 self._maybe_all_reduce(did_fire, "max")
+
+                # Update fire rate EMA
+                with torch.no_grad():
+                    batch_fired = torch.zeros(raw.num_latents, device=self.device)
+                    batch_fired[out.latent_indices.flatten()] = 1.0
+                    fire_ema = fire_ema_decay * fire_ema + (1 - fire_ema_decay) * batch_fired
 
             # Gradient accumulation step
             step, substep = divmod(i + 1, cfg.grad_acc_steps)

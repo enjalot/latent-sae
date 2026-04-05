@@ -213,12 +213,59 @@ class Sae(nn.Module):
         # For efficiency, we keep max_k but zeros won't affect the decode
         return EncoderOutput(top_acts, top_indices)
 
+    def encode_lista(self, x: Tensor, k: Optional[int] = None) -> EncoderOutput:
+        """LISTA encoding: lateral inhibition via decoder weight correlations, then top-k.
+
+        Instead of learning a separate S matrix (which would be num_latents^2 params),
+        we compute inhibition from the decoder weights on-the-fly. The idea: if two
+        features have similar decoder vectors, they represent similar concepts and should
+        compete. We compute this only among the top-4k candidates to keep it tractable.
+
+        Based on Gregor & LeCun 2010 (Learned ISTA) adapted for embedding SAEs.
+        """
+        k = k or self.cfg.k
+        eta = self.cfg.lista_eta
+        candidate_k = min(4 * k, self.num_latents)
+
+        sae_in = x.to(self.dtype) - self.b_dec
+        pre = nn.functional.relu(self.encoder(sae_in))  # [batch, num_latents]
+
+        for _ in range(self.cfg.lista_steps):
+            # Select candidates (top-4k by activation)
+            cand_acts, cand_idx = pre.topk(candidate_k, sorted=False)  # [batch, 4k]
+
+            # Get decoder vectors for candidates
+            cand_dec = self.W_dec[cand_idx]  # [batch, 4k, d_in]
+
+            # Pairwise correlations among candidates (decoder dot products)
+            # [batch, 4k, 4k]
+            corr = torch.bmm(cand_dec, cand_dec.transpose(-1, -2))
+
+            # Zero self-correlations (don't self-inhibit)
+            corr.diagonal(dim1=-2, dim2=-1).zero_()
+
+            # Apply inhibition: subtract correlated activations
+            inhibition = torch.bmm(corr, cand_acts.unsqueeze(-1)).squeeze(-1)  # [batch, 4k]
+            cand_acts = nn.functional.relu(cand_acts - eta * inhibition)
+
+            # Write back into full pre-activation tensor for next iteration
+            if self.cfg.lista_steps > 1:
+                pre = pre.scatter(-1, cand_idx, cand_acts)
+
+        # Final top-k selection from inhibited candidates
+        final_acts, final_local_idx = cand_acts.topk(k, sorted=False)  # [batch, k]
+        final_indices = cand_idx.gather(-1, final_local_idx)  # [batch, k]
+
+        return EncoderOutput(final_acts, final_indices)
+
     def encode(self, x: Tensor) -> EncoderOutput:
         """Encode input using the configured architecture variant."""
         if self.cfg.sae_type == SaeType.GATED:
             return self.encode_gated(x)
         elif self.cfg.sae_type == SaeType.JUMPRELU:
             return self.encode_jumprelu(x)
+        elif self.cfg.sae_type == SaeType.LISTA:
+            return self.encode_lista(x)
         else:
             return self.encode_topk(x)
 
@@ -235,6 +282,9 @@ class Sae(nn.Module):
         if self.cfg.sae_type == SaeType.TOPK:
             pre_acts = self.pre_acts(x)
             top_acts, top_indices = pre_acts.topk(k, sorted=False)
+        elif self.cfg.sae_type == SaeType.LISTA:
+            pre_acts = self.pre_acts(x)  # needed for auxk
+            top_acts, top_indices = self.encode_lista(x, k=k)
         elif self.cfg.sae_type == SaeType.GATED:
             top_acts, top_indices = self._encode_gated_with_k(x, k)
             pre_acts = None  # Gated SAE doesn't use pre_acts for auxk
@@ -261,7 +311,7 @@ class Sae(nn.Module):
             auxk_acts, auxk_indices = auxk_latents.topk(k_aux, sorted=False)
 
             e_hat = self.decode(auxk_acts, auxk_indices)
-            auxk_loss = (e_hat - e).pow(2).sum()
+            auxk_loss = (e_hat - e.detach()).pow(2).sum()
             auxk_loss = scale * auxk_loss / total_variance
         else:
             auxk_loss = sae_out.new_tensor(0.0)

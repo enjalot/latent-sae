@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SAE Model Comparison — Probes & Feature Quality</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;0,700;1,400&family=Noto+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --font-body:'Crimson Pro',Georgia,serif;--font-sans:system-ui,-apple-system,sans-serif;--font-mono:'Noto Sans Mono','SF Mono',Consolas,monospace;
+  --bg:#faf9f7;--surface:#fff;--surface2:#f2efeb;--surface-el:#fffdf9;
+  --border:rgba(0,0,0,.07);--border-br:rgba(0,0,0,.14);--text:#1e1b16;--text-dim:#7a7063;
+  --c1:#1e3a5f;--c2:#b45309;--c3:#059669;--c4:#9f1239;--accent:#d4a73a;--accent-dim:rgba(212,167,58,.10);
+  --ok:#059669;--warn:#d97706;--bad:#dc2626;
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#141210;--surface:#1e1b17;--surface2:#262320;--surface-el:#2a2622;
+  --border:rgba(255,255,255,.06);--border-br:rgba(255,255,255,.12);--text:#e8e0d4;--text-dim:#9a8e7e;
+  --c1:#60a5fa;--c2:#fbbf24;--c3:#34d399;--c4:#fda4af;--accent:#fbbf24;--accent-dim:rgba(251,191,36,.12);
+  --ok:#34d399;--warn:#fbbf24;--bad:#f87171;
+}}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);background-image:radial-gradient(ellipse at 20% 0%,var(--accent-dim) 0%,transparent 45%);color:var(--text);font-family:var(--font-body);padding:40px;min-height:100vh;line-height:1.6}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.anim{animation:fadeUp .4s ease-out both;animation-delay:calc(var(--i,0)*.04s)}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important}}
+.container{max-width:1100px;margin:0 auto}
+h1{font-size:38px;font-weight:700;letter-spacing:-.5px;margin-bottom:4px;font-style:italic}
+.subtitle{color:var(--text-dim);font-size:12px;font-family:var(--font-mono);margin-bottom:10px}
+.lead{font-size:17px;color:var(--text-dim);max-width:720px;margin-bottom:32px;line-height:1.6}
+.lead strong,.lead em{color:var(--text)}
+.sec-head{font-family:var(--font-mono);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;margin:36px 0 14px;display:flex;align-items:center;gap:10px}
+.sec-head .dot{width:8px;height:8px;border-radius:50%}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 24px;margin-bottom:16px;min-width:0}
+.card--hero{background:var(--surface-el);box-shadow:0 4px 20px rgba(0,0,0,.06)}
+.card p{font-family:var(--font-sans);font-size:13px;line-height:1.6;color:var(--text-dim)}
+.card p strong{color:var(--text)}
+.card code{font-family:var(--font-mono);font-size:11px;background:var(--accent-dim);color:var(--accent);padding:1px 5px;border-radius:3px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+@media(max-width:900px){.grid-2,.grid-4{grid-template-columns:1fr}}
+.chart-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px}
+.chart-wrap canvas{max-height:300px}
+.chart-title{font-family:var(--font-mono);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--text-dim);margin-bottom:8px}
+.callout{background:var(--surface2);border:1px solid var(--border);border-radius:0 10px 10px 0;padding:14px 18px;font-family:var(--font-sans);font-size:13px;line-height:1.6;color:var(--text-dim);margin-bottom:16px}
+.callout strong{color:var(--text)}
+.callout code{font-family:var(--font-mono);font-size:11px;background:var(--accent-dim);color:var(--accent);padding:1px 5px;border-radius:3px}
+.callout--ok{border-left:3px solid var(--ok)} .callout--warn{border-left:3px solid var(--warn)} .callout--bad{border-left:3px solid var(--bad)}
+.kpi{text-align:center;padding:16px 10px}
+.kpi-value{font-size:24px;font-weight:700;font-family:var(--font-mono)}
+.kpi-label{font-size:9px;color:var(--text-dim);margin-top:3px;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1px}
+.kpi-sub{font-size:10px;color:var(--text-dim);font-family:var(--font-mono);margin-top:2px}
+.data-table-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--border);margin-bottom:16px}
+table{width:100%;border-collapse:collapse;font-family:var(--font-sans);font-size:12px}
+th{background:var(--surface2);text-align:left;padding:10px 12px;font-family:var(--font-mono);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--text-dim);border-bottom:1px solid var(--border)}
+td{padding:7px 12px;border-bottom:1px solid var(--border)}
+tr:last-child td{border-bottom:none}
+tr:nth-child(even) td{background:var(--surface2)}
+td.best{font-weight:700;color:var(--ok)}
+td.worst{color:var(--bad)}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;font-family:var(--font-mono);font-size:11px;color:var(--text-dim)}
+.legend-item{display:flex;align-items:center;gap:6px}
+.legend-swatch{width:12px;height:12px;border-radius:3px}
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1 class="anim" style="--i:0">SAE Model Comparison</h1>
+<p class="subtitle anim" style="--i:1">4 production models &mdash; probes, retrieval, k-sparse, feature quality</p>
+<p class="lead anim" style="--i:2">
+Four TopK SAE variants trained on 150M MiniLM embeddings (FineWeb + RedPajama + Pile), evaluated on 6 downstream tasks plus feature quality metrics. <em>The key finding: smaller dictionary + higher k = fewer but better features.</em>
+</p>
+
+<!-- Model cards -->
+<div class="sec-head anim" style="--i:3"><span class="dot" style="background:var(--accent)"></span> The Four Models</div>
+<div class="grid-4 anim" style="--i:4">
+  <div class="card kpi" style="border-top:3px solid var(--c1)"><div class="kpi-value" style="color:var(--c1)">8x k=64</div><div class="kpi-label">3,072 features</div><div class="kpi-sub">2,954 active (96%)</div></div>
+  <div class="card kpi" style="border-top:3px solid var(--c4)"><div class="kpi-value" style="color:var(--c4)">16x k=64</div><div class="kpi-label">6,144 features</div><div class="kpi-sub">4,426 active (72%)</div></div>
+  <div class="card kpi" style="border-top:3px solid var(--c2)"><div class="kpi-value" style="color:var(--c2)">8x k=128</div><div class="kpi-label">3,072 features</div><div class="kpi-sub">719 active (23%)</div></div>
+  <div class="card card--hero kpi" style="border-top:3px solid var(--c3)"><div class="kpi-value" style="color:var(--c3)">4x k=128</div><div class="kpi-label">1,536 features</div><div class="kpi-sub">402 active (26%)</div></div>
+</div>
+
+<!-- Probe accuracy comparison -->
+<div class="sec-head anim" style="--i:5"><span class="dot" style="background:var(--accent)"></span> Probe Accuracy: Sparse Features vs Raw Embeddings</div>
+<div class="chart-wrap anim" style="--i:6"><div class="chart-title">Classification &amp; Similarity (sparse feature accuracy)</div><canvas id="probeChart"></canvas></div>
+
+<!-- Gap chart -->
+<div class="chart-wrap anim" style="--i:7"><div class="chart-title">Gap to raw embeddings (lower = better, 0% = perfect preservation)</div><canvas id="gapChart"></canvas></div>
+
+<!-- Full table -->
+<div class="sec-head anim" style="--i:8"><span class="dot" style="background:var(--accent)"></span> Full Results Table</div>
+<div class="data-table-wrap anim" style="--i:9">
+<table>
+<thead><tr><th>Task</th><th>Raw</th><th style="color:var(--c1)">8x k=64</th><th style="color:var(--c4)">16x k=64</th><th style="color:var(--c2)">8x k=128</th><th style="color:var(--c3)">4x k=128</th></tr></thead>
+<tbody>
+<tr><td><strong>AG News</strong> (4-class)</td><td>89.9%</td><td>89.0%</td><td>89.6%</td><td class="best">89.3%</td><td>88.1%</td></tr>
+<tr><td><strong>SST-2</strong> (2-class)</td><td>80.6%</td><td class="best">80.6%</td><td class="best">83.4%</td><td>80.0%</td><td>78.9%</td></tr>
+<tr><td><strong>BANKING77</strong> (77-class)</td><td>87.7%</td><td>85.2%</td><td>84.7%</td><td>85.7%</td><td class="best">86.5%</td></tr>
+<tr><td><strong>CLINC150</strong> (150-class)</td><td>84.1%</td><td class="worst">64.6%</td><td class="worst">64.9%</td><td>76.4%</td><td class="best">79.6%</td></tr>
+<tr><td><strong>STS-B</strong> (spearman)</td><td>0.881</td><td>0.860</td><td>0.857</td><td class="best">0.871</td><td>0.866</td></tr>
+<tr><td><strong>SciFact</strong> (nDCG@10)</td><td>0.645</td><td class="worst">0.584</td><td>0.571</td><td class="best">0.626</td><td>0.621</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="grid-2 anim" style="--i:10">
+  <div class="callout callout--ok"><strong>k=128 models dominate on hard tasks.</strong> CLINC150 gap: 19.6% (k=64) &rarr; 4.5% (4x k=128). SciFact gap: 6.1% &rarr; 2.4%. The sparsity constraint was the bottleneck, not dictionary size.</div>
+  <div class="callout callout--warn"><strong>k=64 models win on easy tasks.</strong> AG News and SST-2 don't need fine-grained features &mdash; broader coverage (96% utilization) helps. But these tasks are too easy to differentiate models.</div>
+</div>
+
+<!-- k-Sparse Probing -->
+<div class="sec-head anim" style="--i:11"><span class="dot" style="background:var(--accent)"></span> k-Sparse Probing (CLINC150)</div>
+<p class="card p anim" style="--i:12; font-family:var(--font-sans);font-size:13px;color:var(--text-dim)">How much accuracy do you get with only the top-1, top-5, top-10, top-20, or all features? This reveals how much information each individual feature carries.</p>
+<div class="chart-wrap anim" style="--i:13"><canvas id="kSparseChart"></canvas></div>
+
+<div class="callout callout--ok anim" style="--i:14">
+  <strong>4x k=128 features carry more information per feature.</strong> At k=20, the 4x k=128 model achieves 61.5% &mdash; nearly as good as 8x k=64 with all 64 features (64.6%). Each feature in the smaller dictionary is more informative because there's less redundancy.
+</div>
+
+<!-- Feature Quality -->
+<div class="sec-head anim" style="--i:15"><span class="dot" style="background:var(--accent)"></span> Feature Quality Metrics</div>
+<div class="grid-2 anim" style="--i:16">
+  <div class="chart-wrap"><div class="chart-title">Decoder Redundancy (MMCS) &mdash; lower = more distinct</div><canvas id="mmcsChart"></canvas></div>
+  <div class="chart-wrap"><div class="chart-title">Feature Utilization &amp; Active Count</div><canvas id="utilChart"></canvas></div>
+</div>
+
+<div class="data-table-wrap anim" style="--i:17">
+<table>
+<thead><tr><th>Metric</th><th style="color:var(--c1)">8x k=64</th><th style="color:var(--c4)">16x k=64</th><th style="color:var(--c2)">8x k=128</th><th style="color:var(--c3)">4x k=128</th></tr></thead>
+<tbody>
+<tr><td><strong>FVU</strong></td><td>0.156</td><td>0.151</td><td class="best">0.069</td><td>0.097</td></tr>
+<tr><td><strong>MMCS</strong> (redundancy)</td><td>0.287</td><td>0.300</td><td>0.232</td><td class="best">0.193</td></tr>
+<tr><td><strong>Active features</strong></td><td class="best">2,954</td><td>4,426</td><td>719</td><td>402</td></tr>
+<tr><td><strong>Utilization</strong></td><td class="best">96.2%</td><td>72.0%</td><td>23.4%</td><td>26.2%</td></tr>
+<tr><td><strong>Parameters</strong></td><td>2.4M</td><td>4.7M</td><td>2.4M</td><td class="best">1.2M</td></tr>
+<tr><td><strong>Max fire rate</strong></td><td>74.9%</td><td>69.7%</td><td>76.1%</td><td>72.4%</td></tr>
+<tr><td><strong>Norm. entropy</strong></td><td>0.835</td><td>0.800</td><td class="best">0.788</td><td>0.808</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- Insight -->
+<div class="sec-head anim" style="--i:18"><span class="dot" style="background:var(--ok)"></span> Key Insight</div>
+<div class="card card--hero anim" style="--i:19;border-left:3px solid var(--ok)">
+<p><strong>The relationship between k and expansion factor matters more than either alone.</strong></p>
+<br>
+<p>At k=64, doubling the dictionary (8x&rarr;16x) added 1,472 active features but didn't improve CLINC150 at all (64.6%&rarr;64.9%). The extra features were redundant (MMCS increased from 0.287 to 0.300).</p>
+<br>
+<p>At k=128, <em>halving</em> the dictionary (8x&rarr;4x) reduced active features from 719 to 402 but <em>improved</em> CLINC150 by 3.2% (76.4%&rarr;79.6%). The features became more distinct (MMCS dropped from 0.232 to 0.193).</p>
+<br>
+<p>The optimal configuration is <strong>high k (128) with small dictionary (4x)</strong>: 402 highly informative, non-redundant features that preserve fine-grained semantic distinctions. Published as <code>128_4</code> at <code>enjalot/sae-all-MiniLM-L6-v2-FineWeb-RedPajama-Pile-150M</code>.</p>
+</div>
+
+</div>
+
+<script>
+const isDark=matchMedia('(prefers-color-scheme:dark)').matches;
+const tc=isDark?'#9a8e7e':'#7a7063',gc=isDark?'rgba(255,255,255,.06)':'rgba(0,0,0,.06)';
+const ff="system-ui,sans-serif";
+const c1=isDark?'#60a5fa':'#1e3a5f',c2=isDark?'#fbbf24':'#b45309',c3=isDark?'#34d399':'#059669',c4=isDark?'#fda4af':'#9f1239';
+const c1a=isDark?'rgba(96,165,250,.5)':'rgba(30,58,95,.5)',c2a=isDark?'rgba(251,191,36,.5)':'rgba(180,83,9,.5)',c3a=isDark?'rgba(52,211,153,.5)':'rgba(5,150,105,.5)',c4a=isDark?'rgba(253,164,175,.5)':'rgba(159,18,57,.5)';
+const rawC=isDark?'#9a8e7e':'#555';
+
+const D={
+  "models": {
+    "8x_k64": {
+      "probes": {
+        "AG News (4-class)": {
+          "raw": 0.899,
+          "recon": 0.884,
+          "sparse": 0.89
+        },
+        "SST-2 (2-class)": {
+          "raw": 0.8057142857142857,
+          "recon": 0.7828571428571428,
+          "sparse": 0.8057142857142857
+        },
+        "BANKING77 (77-class)": {
+          "raw": 0.8766233766233766,
+          "recon": 0.8636363636363636,
+          "sparse": 0.8522727272727273
+        },
+        "CLINC150 (150-class)": {
+          "raw": 0.8409090909090909,
+          "recon": 0.79,
+          "sparse": 0.6454545454545455
+        },
+        "STS-B": {
+          "raw": 0.8809412391910879,
+          "recon": 0.8560899843603249,
+          "sparse": 0.8598519491040075
+        },
+        "SciFact": {
+          "raw": 0.6450816521455776,
+          "recon": 0.5783279734242726,
+          "sparse": 0.5838718295085565
+        }
+      },
+      "k_sparse": {
+        "k=1": 0.19363636363636363,
+        "k=5": 0.29,
+        "k=10": 0.4027272727272727,
+        "k=20": 0.5109090909090909,
+        "k=64": 0.6454545454545455
+      },
+      "feature_quality": {
+        "mmcs": 0.2873668372631073,
+        "utilization": 0.9615885615348816,
+        "dead_features": 0.0384114570915699,
+        "normalized_entropy": 0.8345714878030301,
+        "mean_fire_rate": 0.02083333395421505,
+        "median_fire_rate": 0.004999999888241291,
+        "max_fire_rate": 0.7490000128746033,
+        "active_features": 2954,
+        "total_features": 3072
+      }
+    },
+    "16x_k64": {
+      "probes": {
+        "AG News (4-class)": {
+          "raw": 0.899,
+          "recon": 0.893,
+          "sparse": 0.896
+        },
+        "SST-2 (2-class)": {
+          "raw": 0.8057142857142857,
+          "recon": 0.8285714285714286,
+          "sparse": 0.8342857142857143
+        },
+        "BANKING77 (77-class)": {
+          "raw": 0.8766233766233766,
+          "recon": 0.8555194805194806,
+          "sparse": 0.8474025974025974
+        },
+        "CLINC150 (150-class)": {
+          "raw": 0.8409090909090909,
+          "recon": 0.8072727272727273,
+          "sparse": 0.649090909090909
+        },
+        "STS-B": {
+          "raw": 0.8809412391910879,
+          "recon": 0.851554184380831,
+          "sparse": 0.8568651541783189
+        },
+        "SciFact": {
+          "raw": 0.6450816521455776,
+          "recon": 0.5603515279718198,
+          "sparse": 0.5706195477440901
+        }
+      },
+      "k_sparse": {
+        "k=1": 0.2,
+        "k=5": 0.3236363636363636,
+        "k=10": 0.42818181818181816,
+        "k=20": 0.5445454545454546,
+        "k=64": 0.649090909090909
+      },
+      "feature_quality": {
+        "mmcs": 0.2997379004955292,
+        "utilization": 0.7203776240348816,
+        "dead_features": 0.2796224057674408,
+        "normalized_entropy": 0.8004946155655603,
+        "mean_fire_rate": 0.010416666977107525,
+        "median_fire_rate": 0.0017999999690800905,
+        "max_fire_rate": 0.6967999935150146,
+        "active_features": 4426,
+        "total_features": 6144
+      }
+    },
+    "8x_k128": {
+      "probes": {
+        "AG News (4-class)": {
+          "raw": 0.899,
+          "recon": 0.898,
+          "sparse": 0.893
+        },
+        "SST-2 (2-class)": {
+          "raw": 0.8057142857142857,
+          "recon": 0.8,
+          "sparse": 0.8
+        },
+        "BANKING77 (77-class)": {
+          "raw": 0.8766233766233766,
+          "recon": 0.875,
+          "sparse": 0.8571428571428571
+        },
+        "CLINC150 (150-class)": {
+          "raw": 0.8409090909090909,
+          "recon": 0.8163636363636364,
+          "sparse": 0.7636363636363637
+        },
+        "STS-B": {
+          "raw": 0.8809412391910879,
+          "recon": 0.875964359800093,
+          "sparse": 0.8713720625081829
+        },
+        "SciFact": {
+          "raw": 0.6450816521455776,
+          "recon": 0.6279850392892597,
+          "sparse": 0.6257924967235969
+        }
+      },
+      "k_sparse": {
+        "k=1": 0.19363636363636363,
+        "k=5": 0.2963636363636364,
+        "k=10": 0.3990909090909091,
+        "k=20": 0.5418181818181819,
+        "k=64": 0.7145454545454546
+      },
+      "feature_quality": {
+        "mmcs": 0.23208259046077728,
+        "utilization": 0.2340494841337204,
+        "dead_features": 0.7659505009651184,
+        "normalized_entropy": 0.788124887762592,
+        "mean_fire_rate": 0.0416666679084301,
+        "median_fire_rate": 0.0,
+        "max_fire_rate": 0.7608000040054321,
+        "active_features": 719,
+        "total_features": 3072
+      }
+    },
+    "4x_k128": {
+      "probes": {
+        "AG News (4-class)": {
+          "raw": 0.899,
+          "recon": 0.896,
+          "sparse": 0.881
+        },
+        "SST-2 (2-class)": {
+          "raw": 0.8057142857142857,
+          "recon": 0.7657142857142857,
+          "sparse": 0.7885714285714286
+        },
+        "BANKING77 (77-class)": {
+          "raw": 0.8766233766233766,
+          "recon": 0.8717532467532467,
+          "sparse": 0.8652597402597403
+        },
+        "CLINC150 (150-class)": {
+          "raw": 0.8409090909090909,
+          "recon": 0.81,
+          "sparse": 0.7963636363636364
+        },
+        "STS-B": {
+          "raw": 0.8809412391910879,
+          "recon": 0.8689144294180776,
+          "sparse": 0.8656971966354472
+        },
+        "SciFact": {
+          "raw": 0.6450816521455776,
+          "recon": 0.6378506536817244,
+          "sparse": 0.6213903427974281
+        }
+      },
+      "k_sparse": {
+        "k=1": 0.2009090909090909,
+        "k=5": 0.31,
+        "k=10": 0.4681818181818182,
+        "k=20": 0.6145454545454545,
+        "k=64": 0.7609090909090909
+      },
+      "feature_quality": {
+        "mmcs": 0.1931256502866745,
+        "utilization": 0.26171875,
+        "dead_features": 0.73828125,
+        "normalized_entropy": 0.8083795548956383,
+        "mean_fire_rate": 0.0833333358168602,
+        "median_fire_rate": 0.0,
+        "max_fire_rate": 0.724399983882904,
+        "active_features": 402,
+        "total_features": 1536
+      }
+    }
+  }
+};
+const tasks=['AG News (4-class)','SST-2 (2-class)','BANKING77 (77-class)','CLINC150 (150-class)','STS-B','SciFact'];
+const taskLabels=['AG News','SST-2','BANKING77','CLINC150','STS-B','SciFact'];
+
+// Probe accuracy chart
+new Chart(document.getElementById('probeChart'),{type:'bar',data:{
+  labels:taskLabels,
+  datasets:[
+    {label:'Raw ceiling',data:tasks.map(t=>D.models['8x_k64'].probes[t].raw*100),backgroundColor:isDark?'rgba(154,142,126,.3)':'rgba(85,85,85,.15)',borderColor:rawC,borderWidth:1.5,borderRadius:4},
+    {label:'8x k=64',data:tasks.map(t=>D.models['8x_k64'].probes[t].sparse*100),backgroundColor:c1a,borderColor:c1,borderWidth:1.5,borderRadius:4},
+    {label:'16x k=64',data:tasks.map(t=>D.models['16x_k64'].probes[t].sparse*100),backgroundColor:c4a,borderColor:c4,borderWidth:1.5,borderRadius:4},
+    {label:'8x k=128',data:tasks.map(t=>D.models['8x_k128'].probes[t].sparse*100),backgroundColor:c2a,borderColor:c2,borderWidth:1.5,borderRadius:4},
+    {label:'4x k=128',data:tasks.map(t=>D.models['4x_k128'].probes[t].sparse*100),backgroundColor:c3a,borderColor:c3,borderWidth:1.5,borderRadius:4},
+  ]
+},options:{responsive:true,plugins:{legend:{labels:{color:tc,font:{family:ff,size:11}}}},scales:{x:{ticks:{color:tc,font:{family:ff}},grid:{color:gc}},y:{min:50,title:{display:true,text:'Accuracy / Score (%)',color:tc,font:{family:ff}},ticks:{color:tc,font:{family:ff}},grid:{color:gc}}}}});
+
+// Gap chart
+new Chart(document.getElementById('gapChart'),{type:'bar',data:{
+  labels:taskLabels,
+  datasets:[
+    {label:'8x k=64',data:tasks.map(t=>(D.models['8x_k64'].probes[t].raw-D.models['8x_k64'].probes[t].sparse)*100),backgroundColor:c1a,borderColor:c1,borderWidth:1.5,borderRadius:4},
+    {label:'16x k=64',data:tasks.map(t=>(D.models['16x_k64'].probes[t].raw-D.models['16x_k64'].probes[t].sparse)*100),backgroundColor:c4a,borderColor:c4,borderWidth:1.5,borderRadius:4},
+    {label:'8x k=128',data:tasks.map(t=>(D.models['8x_k128'].probes[t].raw-D.models['8x_k128'].probes[t].sparse)*100),backgroundColor:c2a,borderColor:c2,borderWidth:1.5,borderRadius:4},
+    {label:'4x k=128',data:tasks.map(t=>(D.models['4x_k128'].probes[t].raw-D.models['4x_k128'].probes[t].sparse)*100),backgroundColor:c3a,borderColor:c3,borderWidth:1.5,borderRadius:4},
+  ]
+},options:{responsive:true,plugins:{legend:{labels:{color:tc,font:{family:ff,size:11}}}},scales:{x:{ticks:{color:tc,font:{family:ff}},grid:{color:gc}},y:{title:{display:true,text:'Gap to raw (%)',color:tc,font:{family:ff}},ticks:{color:tc,font:{family:ff}},grid:{color:gc}}}}});
+
+// k-Sparse chart
+const kVals=['k=1','k=5','k=10','k=20','k=64'];
+new Chart(document.getElementById('kSparseChart'),{type:'line',data:{
+  labels:['1','5','10','20','64'],
+  datasets:[
+    {label:'8x k=64',data:kVals.map(k=>D.models['8x_k64'].k_sparse[k]*100),borderColor:c1,backgroundColor:'transparent',borderWidth:2.5,pointRadius:5,pointBackgroundColor:c1,tension:.3},
+    {label:'16x k=64',data:kVals.map(k=>D.models['16x_k64'].k_sparse[k]*100),borderColor:c4,backgroundColor:'transparent',borderWidth:2.5,pointRadius:5,pointBackgroundColor:c4,tension:.3},
+    {label:'8x k=128',data:kVals.map(k=>D.models['8x_k128'].k_sparse[k]*100),borderColor:c2,backgroundColor:'transparent',borderWidth:2.5,pointRadius:5,pointBackgroundColor:c2,tension:.3},
+    {label:'4x k=128',data:kVals.map(k=>D.models['4x_k128'].k_sparse[k]*100),borderColor:c3,backgroundColor:'transparent',borderWidth:2.5,pointRadius:5,pointBackgroundColor:c3,tension:.3},
+  ]
+},options:{responsive:true,plugins:{legend:{labels:{color:tc,font:{family:ff,size:11}}}},scales:{x:{title:{display:true,text:'Number of features used',color:tc,font:{family:ff}},ticks:{color:tc,font:{family:ff}},grid:{color:gc}},y:{min:10,title:{display:true,text:'CLINC150 Accuracy (%)',color:tc,font:{family:ff}},ticks:{color:tc,font:{family:ff}},grid:{color:gc}}}}});
+
+// MMCS chart
+const mnames=['8x k=64','16x k=64','8x k=128','4x k=128'];
+const mkeys=['8x_k64','16x_k64','8x_k128','4x_k128'];
+const mcolors=[c1,c4,c2,c3];
+const mcolorsA=[c1a,c4a,c2a,c3a];
+new Chart(document.getElementById('mmcsChart'),{type:'bar',data:{
+  labels:mnames,
+  datasets:[{label:'MMCS',data:mkeys.map(k=>D.models[k].feature_quality.mmcs),backgroundColor:mcolorsA,borderColor:mcolors,borderWidth:1.5,borderRadius:4}]
+},options:{responsive:true,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{title:{display:true,text:'MMCS (lower = more distinct)',color:tc,font:{family:ff}},ticks:{color:tc,font:{family:ff}},grid:{color:gc},max:.35},y:{ticks:{color:tc,font:{family:ff,size:12}},grid:{display:false}}}}});
+
+// Utilization chart
+new Chart(document.getElementById('utilChart'),{type:'bar',data:{
+  labels:mnames,
+  datasets:[
+    {label:'Active',data:mkeys.map(k=>D.models[k].feature_quality.active_features),backgroundColor:mcolorsA,borderColor:mcolors,borderWidth:1.5,borderRadius:4},
+    {label:'Dead',data:mkeys.map(k=>D.models[k].feature_quality.total_features-D.models[k].feature_quality.active_features),backgroundColor:isDark?'rgba(255,255,255,.08)':'rgba(0,0,0,.06)',borderColor:isDark?'rgba(255,255,255,.15)':'rgba(0,0,0,.12)',borderWidth:1,borderRadius:4},
+  ]
+},options:{responsive:true,plugins:{legend:{labels:{color:tc,font:{family:ff,size:11}}}},scales:{x:{stacked:true,ticks:{color:tc,font:{family:ff}},grid:{display:false}},y:{stacked:true,title:{display:true,text:'Features',color:tc,font:{family:ff}},ticks:{color:tc,font:{family:ff}},grid:{color:gc}}}}});
+</script>
+</body>
+</html>

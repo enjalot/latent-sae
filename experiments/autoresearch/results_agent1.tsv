@@ -1,0 +1,11 @@
+timestamp	idea_id	composite	clinc150	scifact	mmcs	fvu	active	status	description
+20260331_194929	decorr_0.01	0.584968	0.393636	0.584252	0.159207	0.264001	1536.0	ok	Decorrelation loss weight 0.01 (10x stronger than 0.001)
+20260331_195606	freq_penalty_strong	0.581224	0.384545	0.582198	0.157513	0.265494	1536.0	ok	Frequency penalty with lower threshold (5%) and higher weight
+20260331_200108	higher_auxk	0.584187	0.380909	0.597913	0.1585	0.264426	1536.0	ok	Increase auxk_alpha from 1/32 to 1/8
+20260331_200616	lr_2x	0	0	0	0	0	0	crash	Double the learning rate
+20260331_200616	longer_warmup	0.592923	0.423636	0.571626	0.160063	0.267825	1536.0	ok	Increase warmup from 200 to 1000 steps
+20260331_201123	tilt_0.01	0.580694	0.381818	0.583529	0.156973	0.264766	1536.0	ok	Tilted ERM with tilt=0.01 (stronger)
+20260331_201632	entropy_bonus_strong	0.589997	0.402727	0.589342	0.159656	0.264779	1536.0	ok	Stronger entropy bonus (0.1)
+20260331_202214	dead_threshold_10k	0.595975	0.41	0.598469	0.158552	0.264494	1536.0	ok	Lower dead feature threshold from 50K to 10K
+20260331_202741	batch_2048	0.549936	0.305455	0.583545	0.157698	0.283481	1536.0	ok	Double batch size to 2048
+20260331_203416	decorr_cosine	0.604066	0.424545	0.606909	0.159417	0.264561	1536.0	ok	Decorrelation using cosine penalty (not squared)

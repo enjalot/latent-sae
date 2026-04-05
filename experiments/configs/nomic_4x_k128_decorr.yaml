@@ -1,0 +1,41 @@
+name: nomic_4x_k128_decorr
+description: >
+  SAE training on nomic-embed-text-v1.5 (768D) Wikipedia embeddings.
+  Uses best config from MiniLM autoresearch: 4x expansion, k=128, decorr=0.01.
+  Data scaling sweep to find how much data is needed.
+
+data:
+  datasets:
+    - /embeddings/wikipedia-en-chunked-120-nomic-embed-text-v1.5/train
+  d_in: 768
+  file_type: npy
+  n_samples: 20000000
+
+sae:
+  sae_type: topk
+  expansion_factor: 4
+  k: 128
+  decorr_alpha: 0.01
+
+train:
+  batch_size: 1024
+  grad_acc_steps: 2
+  lr_warmup_steps: 2000
+  use_amp: true
+  save_every: 10000
+  auxk_alpha: 0.03125
+  dead_feature_threshold: 50000
+
+logging:
+  use_wandb: true
+  wandb_project: latent-sae
+  wandb_tags:
+    - nomic
+    - data_scaling
+    - decorr
+  wandb_group: nomic_data_scaling
+  results_dir: experiments/results
+  save_model: true
+
+infra:
+  gpu_type: a10g

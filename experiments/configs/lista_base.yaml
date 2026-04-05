@@ -1,8 +1,8 @@
-name: arch_sweep
+name: lista_sweep
 description: >
-  SAE architecture comparison at fixed compute budget.
-  Uses MiniLM 3-source mix (FineWeb + RedPajama + Pile).
-  Ready to run once data mix is finalized — update datasets paths as needed.
+  LISTA (Learned ISTA) experiments: lateral inhibition via decoder correlations.
+  Compares different inhibition strengths (eta) against TopK baseline.
+  Uses v2 settings (auxk=1/32, dead_threshold=50K).
 
 data:
   datasets:
@@ -14,25 +14,30 @@ data:
   n_samples: 10000000
 
 sae:
-  sae_type: topk
+  sae_type: lista
   expansion_factor: 32
   k: 64
+  lista_eta: 0.1
+  lista_steps: 1
 
 train:
   batch_size: 1024
   grad_acc_steps: 2
   lr_warmup_steps: 1000
   use_amp: true
-  save_every: 1000
+  save_every: 5000
+  auxk_alpha: 0.03125
+  dead_feature_threshold: 50000
 
 logging:
   use_wandb: true
   wandb_project: latent-sae-arch-sweep
   wandb_tags:
-    - arch_sweep
-  wandb_group: arch_sweep_10M
+    - lista
+    - arch_sweep_v2
+  wandb_group: lista_10M
   results_dir: experiments/results
-  save_model: true
+  save_model: false
 
 infra:
   gpu_type: a10g

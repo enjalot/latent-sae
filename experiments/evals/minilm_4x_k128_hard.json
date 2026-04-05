@@ -1,0 +1,128 @@
+{
+  "AG News (4-class)": {
+    "raw_embeddings": {
+      "accuracy": 0.899,
+      "f1_macro": 0.8985980435670402
+    },
+    "reconstructed": {
+      "accuracy": 0.896,
+      "f1_macro": 0.8957587845996918
+    },
+    "sparse_features": {
+      "accuracy": 0.881,
+      "f1_macro": 0.880742718378165
+    },
+    "reconstruction_gap": 0.0030000000000000027,
+    "feature_quality_gap": 0.018000000000000016
+  },
+  "SST-2 (2-class)": {
+    "raw_embeddings": {
+      "accuracy": 0.8057142857142857,
+      "f1_macro": 0.804636196480168
+    },
+    "reconstructed": {
+      "accuracy": 0.7657142857142857,
+      "f1_macro": 0.7637393394579999
+    },
+    "sparse_features": {
+      "accuracy": 0.7885714285714286,
+      "f1_macro": 0.7872095698182655
+    },
+    "reconstruction_gap": 0.040000000000000036,
+    "feature_quality_gap": 0.017142857142857126
+  },
+  "BANKING77 (77-class)": {
+    "raw_embeddings": {
+      "accuracy": 0.8766233766233766,
+      "f1_macro": 0.8681814315239835
+    },
+    "reconstructed": {
+      "accuracy": 0.8717532467532467,
+      "f1_macro": 0.8637421471750613
+    },
+    "sparse_features": {
+      "accuracy": 0.8652597402597403,
+      "f1_macro": 0.8598565157341574
+    },
+    "reconstruction_gap": 0.004870129870129913,
+    "feature_quality_gap": 0.011363636363636354
+  },
+  "CLINC150 (150-class)": {
+    "raw_embeddings": {
+      "accuracy": 0.8409090909090909,
+      "f1_macro": 0.8427117999047473
+    },
+    "reconstructed": {
+      "accuracy": 0.81,
+      "f1_macro": 0.8184256505504924
+    },
+    "sparse_features": {
+      "accuracy": 0.7963636363636364,
+      "f1_macro": 0.8087831718218714
+    },
+    "reconstruction_gap": 0.030909090909090886,
+    "feature_quality_gap": 0.044545454545454555
+  },
+  "STS-B (similarity)": {
+    "raw_embeddings": {
+      "spearman": 0.8809412391910879
+    },
+    "reconstructed": {
+      "spearman": 0.8689144294180776
+    },
+    "sparse_features": {
+      "spearman": 0.8656971966354472
+    },
+    "reconstruction_gap": 0.012026809773010294,
+    "feature_quality_gap": 0.015244042555640713
+  },
+  "SciFact Retrieval": {
+    "raw_embeddings": {
+      "ndcg@10": 0.6450816521455776,
+      "n_queries": 300
+    },
+    "reconstructed": {
+      "ndcg@10": 0.6378506536817244,
+      "n_queries": 300
+    },
+    "sparse_features": {
+      "ndcg@10": 0.6213903427974281,
+      "n_queries": 300
+    },
+    "reconstruction_gap": 0.007230998463853111,
+    "feature_quality_gap": 0.023691309348149447
+  },
+  "k-Sparse Probing": {
+    "k=1": {
+      "accuracy": 0.2009090909090909,
+      "f1_macro": 0.022739334121085843
+    },
+    "k=5": {
+      "accuracy": 0.31,
+      "f1_macro": 0.2214238829905795
+    },
+    "k=10": {
+      "accuracy": 0.4681818181818182,
+      "f1_macro": 0.44448617582132005
+    },
+    "k=20": {
+      "accuracy": 0.6145454545454545,
+      "f1_macro": 0.6303801735423341
+    },
+    "k=64": {
+      "accuracy": 0.7609090909090909,
+      "f1_macro": 0.7705231796640465
+    }
+  },
+  "Feature Quality": {
+    "mmcs": 0.1931256502866745,
+    "utilization": 0.26171875,
+    "dead_features": 0.73828125,
+    "normalized_entropy": 0.8083795548956383,
+    "mean_fire_rate": 0.0833333358168602,
+    "median_fire_rate": 0.0,
+    "max_fire_rate": 0.724399983882904,
+    "active_features": 402,
+    "total_features": 1536
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "AG News (topic, 4-class)": {
+    "raw_embeddings": {
+      "accuracy": 0.899,
+      "f1_macro": 0.8985980435670402
+    },
+    "reconstructed": {
+      "accuracy": 0.884,
+      "f1_macro": 0.8833051795535831
+    },
+    "sparse_features": {
+      "accuracy": 0.89,
+      "f1_macro": 0.8896514689918409
+    },
+    "reconstruction_gap": 0.015000000000000013,
+    "feature_quality_gap": 0.009000000000000008
+  },
+  "SST-2 (sentiment, 2-class)": {
+    "raw_embeddings": {
+      "accuracy": 0.8057142857142857,
+      "f1_macro": 0.804636196480168
+    },
+    "reconstructed": {
+      "accuracy": 0.7828571428571428,
+      "f1_macro": 0.7822812991094814
+    },
+    "sparse_features": {
+      "accuracy": 0.8057142857142857,
+      "f1_macro": 0.8049436139522685
+    },
+    "reconstruction_gap": 0.02285714285714291,
+    "feature_quality_gap": 0.0
+  },
+  "STS-B (similarity)": {
+    "raw_embeddings": {
+      "spearman": 0.8809412391910879
+    },
+    "reconstructed": {
+      "spearman": 0.8560899843603249
+    },
+    "sparse_features": {
+      "spearman": 0.8598519491040075
+    },
+    "reconstruction_gap": 0.024851254830763003,
+    "feature_quality_gap": 0.02108929008708038
+  }
+}

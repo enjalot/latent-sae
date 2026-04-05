@@ -1,0 +1,142 @@
+[
+  {
+    "id": "decorr_0.01",
+    "description": "Decorrelation loss weight 0.01 (10x stronger than 0.001)",
+    "patch": {
+      "custom_loss": "extra_loss = 0.0\n    W = sae.W_dec / (sae.W_dec.norm(dim=1, keepdim=True) + 1e-8)\n    corr = (W @ W.T).pow(2)\n    corr.fill_diagonal_(0)\n    extra_loss += 0.01 * corr.mean()\n    return extra_loss"
+    }
+  },
+  {
+    "id": "decorr_0.1",
+    "description": "Decorrelation loss weight 0.1 (100x stronger)",
+    "patch": {
+      "custom_loss": "extra_loss = 0.0\n    W = sae.W_dec / (sae.W_dec.norm(dim=1, keepdim=True) + 1e-8)\n    corr = (W @ W.T).pow(2)\n    corr.fill_diagonal_(0)\n    extra_loss += 0.1 * corr.mean()\n    return extra_loss"
+    }
+  },
+  {
+    "id": "freq_penalty_strong",
+    "description": "Frequency penalty with lower threshold (5%) and higher weight",
+    "patch": {
+      "custom_loss": "extra_loss = 0.0\n    if fire_ema is not None and step > 100:\n        freq_penalty = F.relu(fire_ema - 0.05).pow(2).sum()\n        extra_loss += 1.0 * freq_penalty\n    return extra_loss"
+    }
+  },
+  {
+    "id": "decorr_plus_freq",
+    "description": "Combine decorrelation (0.01) with frequency penalty (0.05 threshold)",
+    "patch": {
+      "custom_loss": "extra_loss = 0.0\n    W = sae.W_dec / (sae.W_dec.norm(dim=1, keepdim=True) + 1e-8)\n    corr = (W @ W.T).pow(2)\n    corr.fill_diagonal_(0)\n    extra_loss += 0.01 * corr.mean()\n    if fire_ema is not None and step > 100:\n        freq_penalty = F.relu(fire_ema - 0.05).pow(2).sum()\n        extra_loss += 0.5 * freq_penalty\n    return extra_loss"
+    }
+  },
+  {
+    "id": "higher_auxk",
+    "description": "Increase auxk_alpha from 1/32 to 1/8",
+    "patch": {
+      "train_config": {"auxk_alpha": 0.125}
+    }
+  },
+  {
+    "id": "auxk_1_4",
+    "description": "Increase auxk_alpha to 1/4",
+    "patch": {
+      "train_config": {"auxk_alpha": 0.25}
+    }
+  },
+  {
+    "id": "lr_2x",
+    "description": "Double the learning rate",
+    "patch": {
+      "train_config": {"lr": 4.62e-4}
+    }
+  },
+  {
+    "id": "lr_0.5x",
+    "description": "Halve the learning rate",
+    "patch": {
+      "train_config": {"lr": 1.155e-4}
+    }
+  },
+  {
+    "id": "longer_warmup",
+    "description": "Increase warmup from 200 to 1000 steps",
+    "patch": {
+      "train_config": {"lr_warmup_steps": 1000}
+    }
+  },
+  {
+    "id": "tilt_0.002",
+    "description": "Tilted ERM with tilt=0.002",
+    "patch": {
+      "train_config": {"tilted_erm_tilt": 0.002}
+    }
+  },
+  {
+    "id": "tilt_0.01",
+    "description": "Tilted ERM with tilt=0.01 (stronger)",
+    "patch": {
+      "train_config": {"tilted_erm_tilt": 0.01}
+    }
+  },
+  {
+    "id": "entropy_bonus",
+    "description": "Entropy bonus on activation distribution (encourage spread)",
+    "patch": {
+      "custom_loss": "extra_loss = 0.0\n    probs = out.latent_acts / (out.latent_acts.sum(dim=-1, keepdim=True) + 1e-8)\n    entropy = -(probs * (probs + 1e-8).log()).sum(dim=-1).mean()\n    extra_loss -= 0.01 * entropy\n    return extra_loss"
+    }
+  },
+  {
+    "id": "entropy_bonus_strong",
+    "description": "Stronger entropy bonus (0.1)",
+    "patch": {
+      "custom_loss": "extra_loss = 0.0\n    probs = out.latent_acts / (out.latent_acts.sum(dim=-1, keepdim=True) + 1e-8)\n    entropy = -(probs * (probs + 1e-8).log()).sum(dim=-1).mean()\n    extra_loss -= 0.1 * entropy\n    return extra_loss"
+    }
+  },
+  {
+    "id": "orthogonal_reinit",
+    "description": "Reinitialize overused features (>20% fire rate) every 500 steps",
+    "patch": {
+      "on_step_end": "if step > 0 and step % 500 == 0:\n        fire_rate = fire_counts / max(total_samples, 1)\n        overused = fire_rate > 0.20\n        n_overused = overused.sum().item()\n        if n_overused > 0:\n            with torch.no_grad():\n                new_dirs = torch.randn(int(n_overused), sae.W_dec.shape[1], device=sae.W_dec.device)\n                new_dirs = new_dirs / new_dirs.norm(dim=1, keepdim=True)\n                sae.W_dec.data[overused] = new_dirs\n                sae.encoder.weight.data[overused] = new_dirs"
+    }
+  },
+  {
+    "id": "dead_threshold_10k",
+    "description": "Lower dead feature threshold from 50K to 10K",
+    "patch": {
+      "train_config": {"dead_feature_threshold": 10000}
+    }
+  },
+  {
+    "id": "dead_threshold_5k",
+    "description": "Very aggressive dead feature threshold: 5K",
+    "patch": {
+      "train_config": {"dead_feature_threshold": 5000}
+    }
+  },
+  {
+    "id": "batch_2048",
+    "description": "Double batch size to 2048",
+    "patch": {
+      "train_config": {"batch_size": 2048}
+    }
+  },
+  {
+    "id": "more_data_5M",
+    "description": "Increase training data to 5M samples",
+    "patch": {
+      "n_samples": 5000000
+    }
+  },
+  {
+    "id": "decorr_cosine",
+    "description": "Decorrelation using cosine penalty (not squared)",
+    "patch": {
+      "custom_loss": "extra_loss = 0.0\n    W = sae.W_dec / (sae.W_dec.norm(dim=1, keepdim=True) + 1e-8)\n    corr = W @ W.T\n    corr.fill_diagonal_(0)\n    extra_loss += 0.01 * corr.abs().mean()\n    return extra_loss"
+    }
+  },
+  {
+    "id": "variance_weighted_recon",
+    "description": "Weight reconstruction loss by per-dimension variance",
+    "patch": {
+      "custom_loss": "extra_loss = 0.0\n    residual = out.sae_out - x\n    var = x.var(dim=0).clamp(min=1e-6)\n    weighted_mse = (residual.pow(2) / var).mean()\n    extra_loss += 0.01 * weighted_mse\n    return extra_loss"
+    }
+  }
+]

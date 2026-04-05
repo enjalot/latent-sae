@@ -1,0 +1,4 @@
+# Architecture comparison WITH proper auxk dead feature handling.
+# 3 configs.
+sweep:
+  sae.sae_type: [topk, gated, jumprelu]

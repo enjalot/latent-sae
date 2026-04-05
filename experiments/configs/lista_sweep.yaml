@@ -1,0 +1,4 @@
+# LISTA eta sweep: test inhibition strength.
+# 3 configs at 1 step (standard LISTA).
+sweep:
+  sae.lista_eta: [0.05, 0.1, 0.3]

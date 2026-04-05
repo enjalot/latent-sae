@@ -1,8 +1,8 @@
-name: arch_sweep
+name: prod_minilm_8x_150M
 description: >
-  SAE architecture comparison at fixed compute budget.
-  Uses MiniLM 3-source mix (FineWeb + RedPajama + Pile).
-  Ready to run once data mix is finalized — update datasets paths as needed.
+  Production TopK SAE training on MiniLM 3-source mix.
+  50M samples from each of FineWeb-edu, RedPajama, Pile (150M total).
+  8x expansion (best from sweep: 0% dead features, same FVU as 32x).
 
 data:
   datasets:
@@ -11,26 +11,31 @@ data:
     - /embeddings/pile-uncopyrighted-chunked-120-all-MiniLM-L6-v2/train
   d_in: 384
   file_type: npy
-  n_samples: 10000000
+  n_samples: 150000000
 
 sae:
   sae_type: topk
-  expansion_factor: 32
+  expansion_factor: 8
   k: 64
 
 train:
   batch_size: 1024
   grad_acc_steps: 2
-  lr_warmup_steps: 1000
+  lr_warmup_steps: 5000
   use_amp: true
-  save_every: 1000
+  save_every: 10000
+  auxk_alpha: 0.03125
+  dead_feature_threshold: 50000
 
 logging:
   use_wandb: true
-  wandb_project: latent-sae-arch-sweep
+  wandb_project: latent-sae
+  wandb_run_name: prod_minilm_8x_150M
   wandb_tags:
-    - arch_sweep
-  wandb_group: arch_sweep_10M
+    - production
+    - minilm
+    - 8x
+  wandb_group: production
   results_dir: experiments/results
   save_model: true
 

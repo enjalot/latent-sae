@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SAE GPU Benchmark — T4 vs A10G vs M2 Max</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --font-body: 'DM Sans', system-ui, sans-serif;
+    --font-mono: 'Fira Code', 'SF Mono', Consolas, monospace;
+    --bg: #f8fafb; --surface: #ffffff; --surface2: #f0f3f5;
+    --border: rgba(0,0,0,0.07); --border-bright: rgba(0,0,0,0.14);
+    --text: #1a2332; --text-dim: #6b7a8d;
+    --t4: #0891b2; --t4-dim: rgba(8,145,178,0.08);
+    --a10g: #059669; --a10g-dim: rgba(5,150,105,0.08);
+    --m2: #b45309; --m2-dim: rgba(180,83,9,0.08);
+    --accent: #d97706; --accent-dim: rgba(217,119,6,0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --surface: #161b22; --surface2: #1c2333;
+      --border: rgba(255,255,255,0.06); --border-bright: rgba(255,255,255,0.12);
+      --text: #e6edf3; --text-dim: #8b949e;
+      --t4: #22d3ee; --t4-dim: rgba(34,211,238,0.12);
+      --a10g: #34d399; --a10g-dim: rgba(52,211,153,0.12);
+      --m2: #fbbf24; --m2-dim: rgba(251,191,36,0.12);
+      --accent: #fbbf24; --accent-dim: rgba(251,191,36,0.12);
+    }
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--bg);
+    background-image: radial-gradient(ellipse at 20% 0%, var(--a10g-dim) 0%, transparent 45%),
+                      radial-gradient(ellipse at 80% 100%, var(--m2-dim) 0%, transparent 35%);
+    color: var(--text); font-family: var(--font-body); padding: 40px; min-height: 100vh;
+  }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+  .anim { animation: fadeUp 0.4s ease-out both; animation-delay: calc(var(--i,0)*0.06s); }
+  @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:0.01ms!important; } }
+
+  .container { max-width: 1060px; margin: 0 auto; }
+  h1 { font-size: 36px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 4px; }
+  .subtitle { color: var(--text-dim); font-family: var(--font-mono); font-size: 12px; margin-bottom: 12px; }
+  .lead { font-size: 16px; color: var(--text-dim); max-width: 740px; margin-bottom: 36px; line-height: 1.6; }
+  .lead strong { color: var(--text); }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; margin-bottom: 16px; }
+  .card--hero { box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
+  .card-label { font-family: var(--font-mono); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .card-label .dot { width:8px; height:8px; border-radius:50%; }
+  .card p { font-size: 13px; color: var(--text-dim); line-height: 1.6; }
+  .card p strong { color: var(--text); }
+  .card code { font-family: var(--font-mono); font-size: 11px; background: var(--accent-dim); color: var(--accent); padding: 1px 5px; border-radius: 3px; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; }
+  @media (max-width:768px) { .grid-2,.grid-3,.grid-4 { grid-template-columns: 1fr; } }
+
+  .kpi { text-align: center; padding: 20px 12px; }
+  .kpi-value { font-size: 28px; font-weight: 700; font-family: var(--font-mono); }
+  .kpi-label { font-size: 10px; color: var(--text-dim); margin-top: 4px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 1px; }
+
+  .data-table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 16px; }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th { background:var(--surface2); text-align:left; padding:10px 12px; font-family:var(--font-mono); font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:1px; color:var(--text-dim); border-bottom:1px solid var(--border); }
+  td { padding:7px 12px; border-bottom:1px solid var(--border); }
+  tr:last-child td { border-bottom:none; }
+  tr:nth-child(even) td { background:var(--surface2); }
+  .t4-row td:first-child { border-left: 3px solid var(--t4); }
+  .a10g-row td:first-child { border-left: 3px solid var(--a10g); }
+  .m2-row td:first-child { border-left: 3px solid var(--m2); }
+  td.best { font-weight: 700; }
+
+  .chart-wrap { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:16px; }
+  .chart-wrap canvas { max-height: 300px; }
+
+  .callout { background:var(--surface2); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:0 10px 10px 0; padding:14px 18px; font-size:13px; line-height:1.6; color:var(--text-dim); margin-bottom:16px; }
+  .callout strong { color:var(--text); }
+  .callout code { font-family:var(--font-mono); font-size:11px; background:var(--accent-dim); color:var(--accent); padding:1px 5px; border-radius:3px; }
+
+  .sec-head { font-family:var(--font-mono); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:1.5px; margin:32px 0 14px; display:flex; align-items:center; gap:10px; }
+  .sec-head .dot { width:8px; height:8px; border-radius:50%; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <h1 class="anim" style="--i:0">GPU Benchmark Results</h1>
+  <p class="subtitle anim" style="--i:1">SAE training throughput &mdash; T4 vs A10G vs M2 Max MPS &mdash; march 2026</p>
+  <p class="lead anim" style="--i:2">
+    Trained TopK SAE (k=64, 32x expansion, <strong>9.4M params</strong>) on 100K MiniLM-384D embeddings
+    across 5 batch sizes on each platform. Modal runs logged to
+    <a href="https://wandb.ai/latent-interfaces/latent-sae-gpu-bench" style="color:var(--a10g)">WandB: latent-sae-gpu-bench</a>.
+  </p>
+
+  <!-- KPIs -->
+  <div class="grid-4 anim" style="--i:3">
+    <div class="card card--hero kpi"><div class="kpi-value" style="color:var(--a10g)">11,766</div><div class="kpi-label">A10G Peak samp/s</div></div>
+    <div class="card card--hero kpi"><div class="kpi-value" style="color:var(--t4)">3,856</div><div class="kpi-label">T4 Peak samp/s</div></div>
+    <div class="card card--hero kpi"><div class="kpi-value" style="color:var(--m2)">3,317</div><div class="kpi-label">M2 Max Peak samp/s</div></div>
+    <div class="card card--hero kpi"><div class="kpi-value" style="color:var(--accent)">$2.60</div><div class="kpi-label">Cheapest per 100M</div></div>
+  </div>
+
+  <!-- Throughput Chart -->
+  <div class="sec-head anim" style="--i:4"><span class="dot" style="background:var(--accent)"></span> Throughput by Batch Size</div>
+  <div class="chart-wrap anim" style="--i:5"><canvas id="throughputChart"></canvas></div>
+
+  <!-- Full Batch-Size Results Table -->
+  <div class="sec-head anim" style="--i:6"><span class="dot" style="background:var(--accent)"></span> Batch-Size Sweep Results</div>
+  <div class="data-table-wrap anim" style="--i:7">
+    <table>
+      <thead><tr><th>Platform</th><th>$/hr</th><th>Batch</th><th>Time (s)</th><th>Throughput</th><th>Cost / 100M</th><th>Time / 100M</th></tr></thead>
+      <tbody>
+        <tr class="t4-row"><td><strong style="color:var(--t4)">T4</strong></td><td>$0.59</td><td class="best">128</td><td>25.9</td><td class="best">3,856 /s</td><td>$4.25</td><td>7.2 hrs</td></tr>
+        <tr class="t4-row"><td><strong style="color:var(--t4)">T4</strong></td><td>$0.59</td><td>256</td><td>51.0</td><td>1,960 /s</td><td>$8.36</td><td>14.2 hrs</td></tr>
+        <tr class="t4-row"><td><strong style="color:var(--t4)">T4</strong></td><td>$0.59</td><td>512</td><td>45.8</td><td>2,183 /s</td><td>$7.51</td><td>12.7 hrs</td></tr>
+        <tr class="t4-row"><td><strong style="color:var(--t4)">T4</strong></td><td>$0.59</td><td>1024</td><td>50.5</td><td>1,979 /s</td><td>$8.28</td><td>14.0 hrs</td></tr>
+        <tr class="t4-row"><td><strong style="color:var(--t4)">T4</strong></td><td>$0.59</td><td>2048</td><td>50.0</td><td>2,002 /s</td><td>$8.19</td><td>13.9 hrs</td></tr>
+        <tr class="a10g-row"><td><strong style="color:var(--a10g)">A10G</strong></td><td>$1.10</td><td>128</td><td>20.8</td><td>4,803 /s</td><td>$6.36</td><td>5.8 hrs</td></tr>
+        <tr class="a10g-row"><td><strong style="color:var(--a10g)">A10G</strong></td><td>$1.10</td><td>256</td><td>16.9</td><td>5,933 /s</td><td>$5.15</td><td>4.7 hrs</td></tr>
+        <tr class="a10g-row"><td><strong style="color:var(--a10g)">A10G</strong></td><td>$1.10</td><td>512</td><td>10.3</td><td>9,698 /s</td><td>$3.15</td><td>2.9 hrs</td></tr>
+        <tr class="a10g-row"><td><strong style="color:var(--a10g)">A10G</strong></td><td>$1.10</td><td class="best">1024</td><td class="best">8.5</td><td class="best">11,766 /s</td><td class="best">$2.60</td><td class="best">2.4 hrs</td></tr>
+        <tr class="a10g-row"><td><strong style="color:var(--a10g)">A10G</strong></td><td>$1.10</td><td>2048</td><td>15.4</td><td>6,499 /s</td><td>$4.70</td><td>4.3 hrs</td></tr>
+        <tr class="m2-row"><td><strong style="color:var(--m2)">M2 Max</strong></td><td>$0</td><td>128</td><td>64.7</td><td>1,546 /s</td><td>$0</td><td>18.0 hrs</td></tr>
+        <tr class="m2-row"><td><strong style="color:var(--m2)">M2 Max</strong></td><td>$0</td><td>256</td><td>44.3</td><td>2,260 /s</td><td>$0</td><td>12.3 hrs</td></tr>
+        <tr class="m2-row"><td><strong style="color:var(--m2)">M2 Max</strong></td><td>$0</td><td>512</td><td>37.5</td><td>2,670 /s</td><td>$0</td><td>10.4 hrs</td></tr>
+        <tr class="m2-row"><td><strong style="color:var(--m2)">M2 Max</strong></td><td>$0</td><td>1024</td><td>33.4</td><td>2,996 /s</td><td>$0</td><td>9.3 hrs</td></tr>
+        <tr class="m2-row"><td><strong style="color:var(--m2)">M2 Max</strong></td><td>$0</td><td class="best">2048</td><td>32.5</td><td class="best">3,317 /s</td><td>$0</td><td>8.4 hrs</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Model Size Sweep (A10G only) -->
+  <div class="sec-head anim" style="--i:8"><span class="dot" style="background:var(--a10g)"></span> Model-Size Sweep (A10G, batch_size=512)</div>
+  <div class="grid-2 anim" style="--i:9">
+    <div class="data-table-wrap">
+      <table>
+        <thead><tr><th>Expansion</th><th>Features</th><th>Params</th><th>Time (s)</th><th>Throughput</th></tr></thead>
+        <tbody>
+          <tr><td><strong>8x</strong></td><td>3,072</td><td>2.4M</td><td>13.5</td><td>7,416 /s</td></tr>
+          <tr><td><strong>32x</strong></td><td>12,288</td><td>9.4M</td><td>14.8</td><td>6,770 /s</td></tr>
+          <tr><td><strong>64x</strong></td><td>24,576</td><td>18.9M</td><td>27.4</td><td>3,648 /s</td></tr>
+          <tr><td><strong>128x</strong></td><td>49,152</td><td>37.7M</td><td>38.4</td><td>2,605 /s</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="chart-wrap"><canvas id="modelChart"></canvas></div>
+  </div>
+
+  <!-- Cost Chart -->
+  <div class="sec-head anim" style="--i:10"><span class="dot" style="background:var(--accent)"></span> Cost per 100M-Sample Run</div>
+  <div class="chart-wrap anim" style="--i:11"><canvas id="costChart"></canvas></div>
+
+  <!-- Analysis -->
+  <div class="sec-head anim" style="--i:12"><span class="dot" style="background:var(--accent)"></span> Key Findings</div>
+  <div class="grid-3 anim" style="--i:13">
+    <div class="callout" style="border-left-color:var(--a10g)">
+      <strong>A10G: batch_size=1024 is optimal.</strong> Peak 11,766 samp/s. Drops at 2048 due to memory bandwidth. Use <code>batch_size=1024, grad_acc_steps=2</code> for effective batch of 2048. Best cost-efficiency at $2.60/100M samples.
+    </div>
+    <div class="callout" style="border-left-color:var(--t4)">
+      <strong>T4: batch_size=128 is optimal.</strong> Peak 3,856 samp/s at smallest batch. The 16GB T4 saturates quickly with larger batches. T4 is both slower AND more expensive per run than A10G &mdash; skip it.
+    </div>
+    <div class="callout" style="border-left-color:var(--m2)">
+      <strong>M2 Max: competitive with T4.</strong> Peak 3,317 samp/s at batch_size=2048 (86% of T4 peak). For overnight runs at $0, it's the best option for iterating on small experiments. 96GB unified memory handles large models easily.
+    </div>
+  </div>
+
+  <div class="callout anim" style="--i:14">
+    <strong>Experiment schedule recommendation:</strong>
+    Use <strong>M2 Max locally</strong> for quick iteration (small data, parameter tuning) &mdash; free and ~3K samp/s.
+    Use <strong>A10G on Modal</strong> for production sweeps &mdash; $2.60/run at 100M samples, 2.4 hrs each.
+    Skip T4 entirely. Full 7-config architecture sweep on 100M MiniLM: <strong>$18, ~2.4 hrs parallel on A10G</strong>.
+  </div>
+
+  <!-- Projections -->
+  <div class="sec-head anim" style="--i:15"><span class="dot" style="background:var(--accent)"></span> Production Run Projections</div>
+  <div class="data-table-wrap anim" style="--i:16">
+    <table>
+      <thead><tr><th>Scenario</th><th>Samples</th><th>Model</th><th>A10G Time</th><th>A10G Cost</th><th>M2 Max Time</th></tr></thead>
+      <tbody>
+        <tr><td><strong>MiniLM arch sweep (7 runs)</strong></td><td>100M each</td><td>384D / 32x</td><td>2.4 hrs (parallel)</td><td>$18</td><td>8.4 hrs each</td></tr>
+        <tr><td><strong>Nomic single run</strong></td><td>250M</td><td>768D / 32x</td><td>~6 hrs</td><td>~$6.60</td><td>~21 hrs</td></tr>
+        <tr><td><strong>Nomic arch sweep (7 runs)</strong></td><td>250M each</td><td>768D / 32x</td><td>~6 hrs (parallel)</td><td>~$46</td><td>6+ days</td></tr>
+        <tr><td><strong>Nomic large model</strong></td><td>250M</td><td>768D / 128x</td><td>~24 hrs</td><td>~$26</td><td>~3.5 days</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+  const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
+  const textColor = isDark ? '#8b949e' : '#6b7a8d';
+  const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+  const t4Color = isDark ? '#22d3ee' : '#0891b2';
+  const a10gColor = isDark ? '#34d399' : '#059669';
+  const m2Color = isDark ? '#fbbf24' : '#b45309';
+  const ff = "'DM Sans', system-ui, sans-serif";
+
+  new Chart(document.getElementById('throughputChart'), {
+    type: 'bar',
+    data: {
+      labels: ['128', '256', '512', '1024', '2048'],
+      datasets: [
+        { label: 'T4 ($0.59/hr)', data: [3856, 1960, 2183, 1979, 2002], backgroundColor: isDark ? 'rgba(34,211,238,0.45)' : 'rgba(8,145,178,0.45)', borderColor: t4Color, borderWidth: 1.5, borderRadius: 4 },
+        { label: 'A10G ($1.10/hr)', data: [4803, 5933, 9698, 11766, 6499], backgroundColor: isDark ? 'rgba(52,211,153,0.45)' : 'rgba(5,150,105,0.45)', borderColor: a10gColor, borderWidth: 1.5, borderRadius: 4 },
+        { label: 'M2 Max (free)', data: [1546, 2260, 2670, 2996, 3317], backgroundColor: isDark ? 'rgba(251,191,36,0.45)' : 'rgba(180,83,9,0.45)', borderColor: m2Color, borderWidth: 1.5, borderRadius: 4 }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { labels: { color: textColor, font: { family: ff, size: 12 } } } },
+      scales: {
+        x: { title: { display: true, text: 'Batch Size', color: textColor, font: { family: ff } }, ticks: { color: textColor, font: { family: ff } }, grid: { color: gridColor } },
+        y: { title: { display: true, text: 'Samples / Second', color: textColor, font: { family: ff } }, ticks: { color: textColor, font: { family: ff } }, grid: { color: gridColor } }
+      }
+    }
+  });
+
+  new Chart(document.getElementById('costChart'), {
+    type: 'line',
+    data: {
+      labels: ['128', '256', '512', '1024', '2048'],
+      datasets: [
+        { label: 'T4', data: [4.25, 8.36, 7.51, 8.28, 8.19], borderColor: t4Color, backgroundColor: 'transparent', borderWidth: 2.5, pointRadius: 5, pointBackgroundColor: t4Color, tension: 0.3 },
+        { label: 'A10G', data: [6.36, 5.15, 3.15, 2.60, 4.70], borderColor: a10gColor, backgroundColor: 'transparent', borderWidth: 2.5, pointRadius: 5, pointBackgroundColor: a10gColor, tension: 0.3 },
+        { label: 'M2 Max', data: [0,0,0,0,0], borderColor: m2Color, backgroundColor: 'transparent', borderWidth: 2.5, borderDash: [6,4], pointRadius: 5, pointBackgroundColor: m2Color, tension: 0.3 }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { labels: { color: textColor, font: { family: ff, size: 12 } } } },
+      scales: {
+        x: { title: { display: true, text: 'Batch Size', color: textColor, font: { family: ff } }, ticks: { color: textColor, font: { family: ff } }, grid: { color: gridColor } },
+        y: { title: { display: true, text: 'Cost per 100M Samples (USD)', color: textColor, font: { family: ff } }, ticks: { color: textColor, font: { family: ff }, callback: v => '$' + v.toFixed(2) }, grid: { color: gridColor } }
+      }
+    }
+  });
+
+  new Chart(document.getElementById('modelChart'), {
+    type: 'bar',
+    data: {
+      labels: ['8x (2.4M)', '32x (9.4M)', '64x (18.9M)', '128x (37.7M)'],
+      datasets: [{
+        label: 'A10G Throughput',
+        data: [7416, 6770, 3648, 2605],
+        backgroundColor: isDark ? 'rgba(52,211,153,0.45)' : 'rgba(5,150,105,0.45)',
+        borderColor: a10gColor, borderWidth: 1.5, borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true, indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { title: { display: true, text: 'Samples/sec', color: textColor, font: { family: ff } }, ticks: { color: textColor, font: { family: ff } }, grid: { color: gridColor } },
+        y: { ticks: { color: textColor, font: { family: ff, size: 11 } }, grid: { display: false } }
+      }
+    }
+  });
+</script>
+</body>
+</html>

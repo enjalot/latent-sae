@@ -1,0 +1,1 @@
+{"sae_type": "TOPK", "expansion_factor": 16, "normalize_decoder": true, "num_latents": 0, "k": 64, "multi_topk": false, "jumprelu_init_threshold": 0.001, "jumprelu_bandwidth": 0.001, "sparsity_penalty": 0.001, "k_anneal": false, "k_anneal_start": 0, "k_anneal_pct": 0.3, "lista_eta": 0.1, "lista_steps": 1, "d_in": 384}

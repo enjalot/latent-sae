@@ -155,6 +155,17 @@ class ExperimentConfig:
                     current = d[param]
                     if current is not None:
                         value = type(current)(value)
+                else:
+                    # New key not in dict — try to infer type
+                    try:
+                        value = float(value)
+                        if value == int(value) and "." not in str(value):
+                            value = int(value)
+                    except (ValueError, TypeError):
+                        if value in ("true", "True"):
+                            value = True
+                        elif value in ("false", "False"):
+                            value = False
                 d[param] = value
             else:
                 raise ValueError(f"Unknown config section: {section}")

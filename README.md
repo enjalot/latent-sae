@@ -1,72 +1,113 @@
 # latent-sae
 
-This is essentially a fork of [EleutherAI/sae](https://github.com/EleutherAI/sae) focused on training Sparse Autodencoders on Sentence transformer embeddings. The main differences are:  
-1) Focus on training only one model on one set of input
-2) Load training data (embeddings) quickly from disk
+Train Sparse Autoencoders on sentence embedding representations. Decomposes dense embedding vectors into sparse, interpretable features.
 
+Fork of [EleutherAI/sae](https://github.com/EleutherAI/sae), focused on sentence transformer embeddings with fast disk-based data loading, Modal GPU training, and a comprehensive experiment framework.
 
+## Published Models
 
-## Inference
+| Model | Subfolder | Embedding | Features | k | Best For |
+|-------|-----------|-----------|----------|---|----------|
+| [sae-all-MiniLM-L6-v2-FineWeb-RedPajama-Pile-150M](https://huggingface.co/enjalot/sae-all-MiniLM-L6-v2-FineWeb-RedPajama-Pile-150M) | `128_4` | MiniLM (384D) | 1,536 | 128 | Fine-grained classification |
+| | `128_8` | MiniLM (384D) | 3,072 | 128 | Retrieval |
+| | `64_8` | MiniLM (384D) | 3,072 | 64 | Maximum feature coverage |
+| [sae-nomic-text-v1.5-FineWeb-edu-100BT](https://huggingface.co/enjalot/sae-nomic-text-v1.5-FineWeb-edu-100BT) | `64_32` | nomic-v1.5 (768D) | 24,576 | 64 | Legacy (taxonomy) |
+
+## Quick Start
 
 ```python
-# !pip install latentsae
+# pip install latentsae
 from latentsae import Sae
-sae_model = Sae.load_from_hub("enjalot/sae-nomic-text-v1.5-FineWeb-edu-100BT", "64_32")
-# or from disk
-sae_model = Sae.load_from_disk("models/sae_64_32.3mq7ckj7")
-
-# Get some embeddings
-texts = ["Hello world", "Will I ever halt?", "Goodbye world"]
 from sentence_transformers import SentenceTransformer
-emb_model = SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True)
-embeddings = emb_model.encode(texts, convert_to_tensor=True, normalize_embeddings=True)
+import torch
 
-features = sae_model.encode(normalized_embeddings)
-print(features.top_indices)
-print(features.top_acts)
+# Load SAE
+sae = Sae.load_from_hub("enjalot/sae-all-MiniLM-L6-v2-FineWeb-RedPajama-Pile-150M", "128_4")
+
+# Embed text
+model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+embeddings = model.encode(["Hello world", "Sparse autoencoders decompose embeddings"],
+                          convert_to_tensor=True, normalize_embeddings=True)
+
+# Extract sparse features
+features = sae.encode(embeddings)
+print(features.top_indices)  # which features activated
+print(features.top_acts)     # how strongly
 ```
-
-See [notebooks/eval.ipynb](notebooks/eval.ipynb) for an example of how to use the model for extracting features from an embedding dataset.
 
 ## Training
 
-I focused on training with [Modal Labs](https://modal.com) GPUs, I found an A10G to be sufficiently fast & cheap.
+### With YAML config (recommended)
 
 ```bash
-modal run train_modal.py --batch-size 512 --grad-acc-steps 4 --k 64 --expansion-factor 128
+# Single run on Modal A10G
+modal run train_modal.py --config experiments/configs/minilm_30M_3source.yaml --gpu-type a10g
+
+# Parameter sweep (parallel)
+modal run train_modal.py --config experiments/configs/arch_sweep_base.yaml \
+  --sweep experiments/configs/arch_sweep_type.yaml --gpu-type a10g
+
+# Local training on M2 Mac
+python -m experiments.run_experiment experiments/configs/smoke_test.yaml --device mps
 ```
 
-You can also train locally with a CPU or GPU.
+### With CLI args (quick experiments)
 
 ```bash
-python train_local.py --batch-size 512 --grad-acc-steps 4 --k 64 --expansion-factor 128 
+modal run train_modal.py --batch-size 1024 --k 128 --expansion-factor 4 --gpu-type a10g
+python train_local.py --batch_size 512 --k 64 --expansion_factor 8
 ```
+
+## Experiment Framework
+
+YAML-driven experiment system with config hashing, cartesian sweeps, and WandB integration. See [experiments/](experiments/) for configs and results.
+
+```bash
+# Dry-run a sweep to see what would execute
+python -m experiments.run_experiment experiments/configs/arch_sweep_base.yaml \
+  --sweep experiments/configs/arch_sweep_type.yaml --dry-run
+
+# Compare results
+python -m experiments.compare_results experiments/results/
+
+# Evaluate a trained SAE
+python -m experiments.eval_probes --sae-path checkpoints/sae_topk_128_4.xxx \
+  --embedding-model sentence-transformers/all-MiniLM-L6-v2 --suite hard
+```
+
+### Evaluation Suite
+
+| Task | Type | What it tests |
+|------|------|---------------|
+| AG News | 4-class classification | Coarse topic features |
+| SST-2 | 2-class classification | Sentiment features |
+| BANKING77 | 77-class classification | Fine-grained intent features |
+| CLINC150 | 150-class classification | Very fine-grained (hardest) |
+| STS-B | Similarity (spearman) | Continuous semantic structure |
+| SciFact | Retrieval (nDCG@10) | Information preservation |
+| MMCS | Feature quality | Decoder weight redundancy |
+
+## Architecture
+
+Supported SAE types: **TopK** (recommended), Gated, JumpReLU, LISTA.
+
+Training features: auxk dead feature revival, k-annealing, tilted ERM, decoder decorrelation loss, fire rate penalty, mixed precision (AMP), cosine LR schedule.
+
+### Key Research Findings
+
+- **Expansion factor 4-8x** is optimal for embeddings (not 32x like LLM layers)
+- **k=128** dramatically beats k=64 on fine-grained tasks (CLINC150: 79.6% vs 64.6%)
+- **30M diverse samples** retains 97% of 150M quality at 6.4x lower cost
+- **3-source data mix** matters more than any training regularization
+- **A10G at batch_size=1024** is the cost-optimal GPU config ($2.60/100M samples)
 
 ## Data Preparation
-I wrote a detailed article on the methodology behind the data, training and analysis of the SAEs trained with this repo:
-[Latent Taxonomy Methodology](https://enjalot.github.io/latent-taxonomy/articles/about)
 
-I used [Modal Labs](https://modal.com) to rent VMs and GPUs for the data preprocessing and training. See [enjalot/fineweb-modal](https://github.com/enjalot/fineweb-modal) for the scripts used to preprocess the FineWeb-EDU 10BT and 100BT samples and embed them with [nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5).
+Training data (pre-computed embeddings) is prepared in [latent-data-modal](https://github.com/enjalot/latent-data-modal). See the [Latent Taxonomy methodology](https://enjalot.github.io/latent-taxonomy/articles/about) for details.
 
-I first trained on the 10BT sample, chunked into 500 token chunks which is available [on HuggingFace](https://huggingface.co/datasets/enjalot/fineweb-edu-sample-10BT-chunked-500-nomic-text-v1.5). This gave 25 million embeddings to train on.
-From the wandb charts it looked like the model could improve further with more data so I then prepared 10x the embeddings with the 100BT sample. I'm working on uploading that to HF still.
+## Part of the latent-* ecosystem
 
-For locally testing the code I downloaded a single parquet file from the dataset.
-For the full training run, I downloaded the whole dataset to disk in a modal volume, then processed it into sharded torch .pt files using this script: [torched.py](https://github.com/enjalot/fineweb-modal/blob/main/torched.py)
-
-## Parameters
-The main parameters I tried to change were:
-
-- batch-size: how many embeddings in a batch (bigger is better?) settled on 512 for performance tradeoff
-- grad-acc-steps: how many steps to skip updating gradient. simulates bigger batch size. not sure the penalty for making this really big. settled on 4 with batch size of 512
-- k: sparsity; how many top features to consider. fewer is sparser and more interpretable, but worse error. tried 64 and 128 but unsure how to measure quality differences yet
-- expansion factor: multiply times dimensions of input embedding (768 in case of nomic). chose 32 and 128 to give ~25k and ~100k features respectively.
-
-### Open questions
-Another thought I have that I might try is to process the data into even smaller chunks. At 500 tokens the samples are quite large and I believe we are essentially aggregating a lot of features across those tokens. 
-If we chunked at something like 100 tokens each sample would be much more granular and we would also have 5x more training data.
-Again, I'm not sure how I'd evaluate the quality tradeoff of this yet.
-
-Part of the motivation with this repo and the [fineweb-modal](https://github.com/enjalot/fineweb-modal) repo is to make it easier
-to train SAEs on other datasets. FineWeb-EDU has certain desirable properties for some down-stream tasks, but I can imagine training on a large dataset of code or a more general corpus like RedPajama v2.
-
+- [latent-scope](https://github.com/enjalot/latent-scope) — Interactive dataset exploration
+- [latent-taxonomy](https://github.com/enjalot/latent-taxonomy) — SAE feature visualization
+- [latent-basemap](https://github.com/enjalot/latent-basemap) — Parametric UMAP for consistent 2D layouts
+- [latent-data-modal](https://github.com/enjalot/latent-data-modal) — Data pipelines on Modal

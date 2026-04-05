@@ -1,0 +1,11 @@
+timestamp	idea_id	composite	clinc150	scifact	mmcs	fvu	active	status	description
+20260331_194935	decorr_0.1	0.59083	0.406364	0.586471	0.158854	0.264035	1536.0	ok	Decorrelation loss weight 0.1 (100x stronger)
+20260331_195621	decorr_plus_freq	0.591046	0.41	0.581926	0.158441	0.264061	1536.0	ok	Combine decorrelation (0.01) with frequency penalty (0.05 threshold)
+20260331_200128	auxk_1_4	0.581361	0.386364	0.580458	0.157739	0.263216	1536.0	ok	Increase auxk_alpha to 1/4
+20260331_200634	lr_0.5x	0	0	0	0	0	0	crash	Halve the learning rate
+20260331_200634	tilt_0.002	0.593952	0.416364	0.583967	0.15928	0.263198	1536.0	ok	Tilted ERM with tilt=0.002
+20260331_201140	entropy_bonus	0.5876	0.398182	0.586424	0.158665	0.263629	1536.0	ok	Entropy bonus on activation distribution (encourage spread)
+20260331_201641	orthogonal_reinit	0.580349	0.38	0.585943	0.158113	0.264999	1536.0	ok	Reinitialize overused features (>20% fire rate) every 500 steps
+20260331_202222	dead_threshold_5k	0.589511	0.402727	0.587046	0.158978	0.264236	1536.0	ok	Very aggressive dead feature threshold: 5K
+20260331_202757	more_data_5M	0.597238	0.403636	0.611109	0.158497	0.265156	1536.0	ok	Increase training data to 5M samples
+20260331_203251	variance_weighted_recon	0.579638	0.379091	0.584623	0.157951	0.264534	1536.0	ok	Weight reconstruction loss by per-dimension variance

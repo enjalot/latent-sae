@@ -1,0 +1,5 @@
+# Expansion factor sweep to find right dictionary size.
+# Literature suggests 2x-8x for embeddings vs 32x for LLM layers.
+# 4 configs.
+sweep:
+  sae.expansion_factor: [4, 8, 16, 32]

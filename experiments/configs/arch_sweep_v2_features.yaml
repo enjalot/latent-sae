@@ -1,0 +1,6 @@
+# Training features with auxk properly enabled.
+# Test k_anneal and multi_topk (now scaled by 1/8).
+# 4 configs.
+sweep:
+  sae.k_anneal: [false, true]
+  sae.multi_topk: [false, true]

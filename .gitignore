@@ -11,3 +11,13 @@ build
 dist
 experiments/results/
 experiments/local_bench_data/
+experiments/prod_checkpoint*/
+experiments/fire_rate_ckpts/
+experiments/autoresearch/.data/
+experiments/autoresearch/logs/
+experiments/autoresearch/agent*_stdout.log
+*.safetensors
+*.npyexperiments/autoresearch/.data/
+experiments/autoresearch/.cache/
+experiments/autoresearch/run.log
+experiments/autoresearch/results.tsv

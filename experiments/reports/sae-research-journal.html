@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SAE Research Journal — March 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,600;0,700;1,400&family=Source+Code+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --font-body:'Source Serif 4',Georgia,serif;--font-sans:system-ui,-apple-system,sans-serif;--font-mono:'Source Code Pro','SF Mono',Consolas,monospace;
+  --bg:#faf9f6;--surface:#fff;--surface2:#f3f0ea;--surface-el:#fffdf8;
+  --border:rgba(0,0,0,.08);--border-br:rgba(0,0,0,.15);--text:#1a1814;--text-dim:#6b6357;
+  --teal:#0f766e;--teal-dim:rgba(15,118,110,.08);--amber:#b45309;--amber-dim:rgba(180,83,9,.08);
+  --rose:#9f1239;--rose-dim:rgba(159,18,57,.08);--blue:#1e3a5f;--blue-dim:rgba(30,58,95,.08);
+  --green:#059669;--green-dim:rgba(5,150,105,.08);--slate:#475569;
+  --ok:#059669;--warn:#d97706;--dead:#dc2626;
+  --accent:#b45309;--accent-dim:rgba(180,83,9,.08);
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#14120f;--surface:#1e1b16;--surface2:#262320;--surface-el:#2a2622;
+  --border:rgba(255,255,255,.06);--border-br:rgba(255,255,255,.12);--text:#e8e0d4;--text-dim:#9a8e7e;
+  --teal:#5eead4;--teal-dim:rgba(94,234,212,.10);--amber:#fbbf24;--amber-dim:rgba(251,191,36,.10);
+  --rose:#fda4af;--rose-dim:rgba(253,164,175,.10);--blue:#60a5fa;--blue-dim:rgba(96,165,250,.10);
+  --green:#34d399;--green-dim:rgba(52,211,153,.10);--slate:#94a3b8;
+  --ok:#34d399;--warn:#fbbf24;--dead:#f87171;
+  --accent:#fbbf24;--accent-dim:rgba(251,191,36,.10);
+}}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--font-body);padding:0;min-height:100vh;line-height:1.7}
+.page{max-width:800px;margin:0 auto;padding:60px 40px 120px}
+@media(max-width:860px){.page{padding:40px 20px 80px}}
+
+/* Header */
+.hero{padding:80px 0 60px;border-bottom:1px solid var(--border)}
+h1{font-size:42px;font-weight:700;letter-spacing:-.5px;margin-bottom:8px;line-height:1.2}
+.hero .sub{color:var(--text-dim);font-family:var(--font-mono);font-size:12px;margin-bottom:16px}
+.hero .lead{font-size:19px;color:var(--text-dim);line-height:1.6;max-width:640px}
+.hero .lead strong{color:var(--text)}
+
+/* Timeline */
+.day{margin-top:48px;padding-top:32px;border-top:2px solid var(--border)}
+.day-label{font-family:var(--font-mono);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:2px;color:var(--accent);margin-bottom:24px}
+.entry{margin-bottom:40px}
+.entry h2{font-size:24px;font-weight:600;margin-bottom:6px;line-height:1.3}
+.entry h3{font-size:18px;font-weight:600;margin:20px 0 8px;color:var(--text)}
+.entry p{font-size:15px;color:var(--text-dim);margin-bottom:12px;max-width:700px}
+.entry p strong{color:var(--text)}
+.entry code{font-family:var(--font-mono);font-size:12px;background:var(--accent-dim);color:var(--accent);padding:1px 5px;border-radius:3px}
+
+/* Tables */
+.tbl-wrap{overflow-x:auto;border-radius:8px;border:1px solid var(--border);margin:16px 0}
+table{width:100%;border-collapse:collapse;font-family:var(--font-sans);font-size:13px}
+th{background:var(--surface2);text-align:left;padding:8px 12px;font-family:var(--font-mono);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--text-dim);border-bottom:1px solid var(--border)}
+td{padding:6px 12px;border-bottom:1px solid var(--border)}
+tr:last-child td{border-bottom:none}
+tr:nth-child(even) td{background:var(--surface2)}
+td.best{font-weight:700;color:var(--ok)}
+td.bad{color:var(--dead)}
+td.warn{color:var(--warn)}
+
+/* Cards & callouts */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin:16px 0}
+.card--hero{background:var(--surface-el);box-shadow:0 2px 12px rgba(0,0,0,.05)}
+.card-label{font-family:var(--font-mono);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.card-label .dot{width:7px;height:7px;border-radius:50%}
+.callout{background:var(--surface2);border:1px solid var(--border);border-radius:0 8px 8px 0;padding:12px 16px;font-size:14px;line-height:1.6;color:var(--text-dim);margin:16px 0}
+.callout strong{color:var(--text)}
+.callout--ok{border-left:3px solid var(--ok)}
+.callout--warn{border-left:3px solid var(--warn)}
+.callout--dead{border-left:3px solid var(--dead)}
+.callout--leaf{border-left:3px solid var(--slate);background:var(--surface)}
+
+/* Leaf node marker */
+.leaf{display:inline-flex;align-items:center;gap:5px;font-family:var(--font-mono);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1px;padding:3px 10px;border-radius:4px;background:var(--surface2);color:var(--slate);border:1px solid var(--border);margin:4px 0}
+
+/* Grid */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+@media(max-width:700px){.grid-2,.grid-3{grid-template-columns:1fr}}
+.kpi{text-align:center;padding:16px 12px}
+.kpi-value{font-size:24px;font-weight:700;font-family:var(--font-mono)}
+.kpi-label{font-size:9px;color:var(--text-dim);margin-top:3px;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1px}
+
+/* Section divider */
+.divider{height:1px;background:var(--border);margin:32px 0}
+
+/* Status pills */
+.status{display:inline-block;font-family:var(--font-mono);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;padding:2px 8px;border-radius:4px}
+.status--published{background:var(--green-dim);color:var(--ok)}
+.status--running{background:var(--amber-dim);color:var(--warn)}
+.status--planned{background:var(--blue-dim);color:var(--blue)}
+.status--dead{background:var(--rose-dim);color:var(--dead)}
+</style>
+</head>
+<body>
+<div class="page">
+
+<div class="hero">
+  <h1>SAE Research Journal</h1>
+  <p class="sub">March 29 &ndash; April 1, 2026 &mdash; latent-sae experiments</p>
+  <p class="lead">A chronological record of every experiment direction, what worked, what didn't, and where we stopped. <strong>~50 experiments, ~$15 in Modal costs, 3 published models.</strong></p>
+</div>
+
+<!-- ═══════════ DAY 1: March 29 ═══════════ -->
+<div class="day">
+<div class="day-label">March 29 &mdash; Setup & Infrastructure</div>
+
+<div class="entry">
+  <h2>PR #1: Architecture Modernization</h2>
+  <p>Starting point: fork of EleutherAI/sae with only TopK SAE. Added <strong>Gated SAE</strong>, <strong>JumpReLU SAE</strong>, <strong>k-annealing</strong>, <strong>tilted ERM</strong>, <strong>mixed precision</strong>, and <strong>cosine LR schedule</strong>. Fixed tilted ERM bug that was overwriting the entire loss, and addressed 4 code review comments (AMP unscaling, JumpReLU sparsity penalty, linear LR transformers dependency, k-annealing clamp).</p>
+</div>
+
+<div class="entry">
+  <h2>Experiment Framework</h2>
+  <p>Built a config-driven experiment system modeled on latent-basemap: YAML configs with SHA256 hash dedup, cartesian sweep generation, dot-notation CLI overrides. Updated <code>train_modal.py</code> with GPU type selection (T4/A10G/A100) and parallel <code>.spawn()</code> dispatch. Added <code>experiments/run_experiment.py</code>, <code>compare_results.py</code>, and 7 YAML configs.</p>
+</div>
+</div>
+
+<!-- ═══════════ DAY 2: March 30 ═══════════ -->
+<div class="day">
+<div class="day-label">March 30 &mdash; GPU Benchmarks & First Sweeps</div>
+
+<div class="entry">
+  <h2>GPU Benchmarks</h2>
+  <p>Measured throughput across T4, A10G, and M2 Max MPS with batch-size sweeps (5 configs each). Found <strong>A10G at batch_size=1024 is optimal</strong> &mdash; both fastest and cheapest per unit of work.</p>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Platform</th><th>Best Batch</th><th>Peak Samp/s</th><th>$/100M</th><th>Time/100M</th></tr></thead>
+    <tbody>
+      <tr><td><strong>A10G</strong></td><td class="best">1024</td><td class="best">11,766</td><td class="best">$2.60</td><td class="best">2.4 hrs</td></tr>
+      <tr><td>T4</td><td>128</td><td>3,856</td><td>$4.25</td><td>7.2 hrs</td></tr>
+      <tr><td>M2 Max</td><td>2048</td><td>3,317</td><td>$0</td><td>8.4 hrs</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="callout callout--dead"><strong>T4 is dominated.</strong> Slower AND more expensive than A10G. M2 Max is competitive with T4 and free.</div>
+  <span class="leaf">Leaf: T4 abandoned</span>
+</div>
+
+<div class="entry">
+  <h2>Architecture Sweep v1 (auxk disabled)</h2>
+  <p>First attempt at comparing TopK vs Gated vs JumpReLU on 10M MiniLM samples. <strong>Ran with auxk_alpha=0 (disabled by default)</strong> &mdash; a bug we didn't discover until later.</p>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Architecture</th><th>FVU</th><th>Dead %</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr><td><strong>TopK</strong></td><td class="best">0.177</td><td class="best">0%</td><td><span class="status status--published">Reliable</span></td></tr>
+      <tr><td>JumpReLU</td><td class="best">0.032</td><td class="bad">95.6%</td><td>Best FVU, most dead</td></tr>
+      <tr><td>Gated</td><td class="bad">0.512</td><td class="bad">99.2%</td><td><span class="status status--dead">Collapsed</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <span class="leaf">Leaf: Gated SAE abandoned (collapses at this scale)</span>
+
+  <h3>Training Features Sweep v1</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Config</th><th>FVU</th><th>Dead %</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr><td>Baseline</td><td class="best">0.179</td><td class="best">0%</td><td>Best</td></tr>
+      <tr><td>k-annealing</td><td>0.195</td><td class="best">0%</td><td>OK but slower</td></tr>
+      <tr><td>multi-topk</td><td>0.264</td><td class="bad">94.8%</td><td><span class="status status--dead">Kills features</span></td></tr>
+      <tr><td>Both</td><td>0.272</td><td class="bad">94.7%</td><td><span class="status status--dead">Kills features</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <span class="leaf">Leaf: multi_topk harmful for embedding SAEs</span>
+</div>
+
+<div class="entry">
+  <h2>Dead Features Bug Discovery</h2>
+  <p>Between v1 and v2 sweeps, discovered <strong>three misconfigurations</strong> explaining the dead feature epidemic:</p>
+  <div class="grid-3">
+    <div class="card" style="border-top:2px solid var(--dead)"><div class="card-label" style="color:var(--dead)"><span class="dot" style="background:var(--dead)"></span>auxk_alpha=0</div><p style="font-size:12px">Dead feature revival was disabled by default. Literature uses 1/32.</p></div>
+    <div class="card" style="border-top:2px solid var(--dead)"><div class="card-label" style="color:var(--dead)"><span class="dot" style="background:var(--dead)"></span>dead_threshold=10M</div><p style="font-size:12px">Threshold unreachable with 10M training samples.</p></div>
+    <div class="card" style="border-top:2px solid var(--dead)"><div class="card-label" style="color:var(--dead)"><span class="dot" style="background:var(--dead)"></span>multi_topk unscaled</div><p style="font-size:12px">Should be L(4k)/8 per Gao et al., we added at full weight.</p></div>
+  </div>
+</div>
+
+<div class="entry">
+  <h2>Expansion Factor Sweep (v2, auxk fixed)</h2>
+  <p>With auxk properly enabled, swept expansion factors. <strong>The key finding of the project:</strong></p>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Expansion</th><th>Features</th><th>FVU</th><th>Dead %</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr><td><strong>4x</strong></td><td>1,536</td><td class="best">0.178</td><td>8.1%</td><td>Good</td></tr>
+      <tr style="background:var(--green-dim)"><td><strong>8x</strong></td><td>3,072</td><td class="best">0.178</td><td class="best">0%</td><td><span class="status status--published">Published</span></td></tr>
+      <tr><td>16x</td><td>6,144</td><td>0.197</td><td class="warn">45.9%</td><td>Wasted capacity</td></tr>
+      <tr><td>32x</td><td>12,288</td><td>0.200</td><td class="bad">56.5%</td><td>Half dead</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="callout callout--ok"><strong>8x = same FVU as 32x, 0% dead features.</strong> Embedding SAEs need much smaller dictionaries than LLM-layer SAEs. The literature (arXiv:2408.00657) predicted this.</div>
+</div>
+
+<div class="entry">
+  <h2>LISTA (Lateral Inhibition)</h2>
+  <p>Implemented decoder-correlation-based lateral inhibition (from Gregor & LeCun 2010). Features suppress correlated competitors before top-k selection. Tested at three eta values.</p>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Config</th><th>FVU</th><th>Dead %</th><th>Throughput</th></tr></thead>
+    <tbody>
+      <tr><td>TopK baseline</td><td class="best">0.177</td><td class="best">0%</td><td>34,964</td></tr>
+      <tr><td>LISTA eta=0.05</td><td>0.181</td><td class="bad">63.1%</td><td>32,948</td></tr>
+      <tr><td>LISTA eta=0.1</td><td>0.190</td><td class="bad">69.4%</td><td>27,220</td></tr>
+      <tr><td>LISTA eta=0.3</td><td>0.216</td><td class="bad">94.3%</td><td>26,287</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="callout callout--dead"><strong>LISTA doesn't help.</strong> The on-the-fly decoder correlation approach is too coarse. Slower and more dead features at every eta value.</div>
+  <span class="leaf">Leaf: LISTA abandoned (decoder-correlation variant)</span>
+</div>
+</div>
+
+<!-- ═══════════ DAY 3: March 30-31 ═══════════ -->
+<div class="day">
+<div class="day-label">March 30&ndash;31 &mdash; Production Training & Hard Evaluation</div>
+
+<div class="entry">
+  <h2>Production Run: 8x k=64 (150M MiniLM)</h2>
+  <p>First production-scale training: 150M embeddings (50M each from FineWeb-edu, RedPajama, Pile). FVU=0.156, 1.2% dead features, $0.99, 54 minutes on A10G.</p>
+
+  <h3>Standard Eval (Easy Tasks)</h3>
+  <p>AG News 89.0% (gap -0.9%), SST-2 80.6% (gap 0.0%), STS-B 0.860 (gap -0.021). All within the 5% threshold. <strong>But these tasks are too easy to differentiate models.</strong></p>
+
+  <h3>Hard Eval (The Real Story)</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Task</th><th>Raw</th><th>8x k=64</th><th>Gap</th></tr></thead>
+    <tbody>
+      <tr><td>AG News (4-class)</td><td>89.9%</td><td>89.0%</td><td>-0.9%</td></tr>
+      <tr><td>SST-2 (2-class)</td><td>80.6%</td><td>80.6%</td><td>0.0%</td></tr>
+      <tr><td>BANKING77 (77-class)</td><td>87.7%</td><td>85.2%</td><td>-2.4%</td></tr>
+      <tr><td><strong>CLINC150 (150-class)</strong></td><td><strong>84.1%</strong></td><td class="bad"><strong>64.6%</strong></td><td class="bad"><strong>-19.6%</strong></td></tr>
+      <tr><td>SciFact (nDCG@10)</td><td>0.645</td><td>0.584</td><td>-6.1%</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="callout callout--warn"><strong>CLINC150 revealed the real gap.</strong> 150-class intent classification loses 19.6% &mdash; the SAE can't preserve fine-grained semantic distinctions at k=64.</div>
+</div>
+
+<div class="entry">
+  <h2>The k Discovery: k=128 Changes Everything</h2>
+  <p>Hypothesis: the bottleneck is the sparsity constraint (k=64), not dictionary size. Trained 8x k=128 and 4x k=128.</p>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Config</th><th>CLINC150</th><th>BANKING77</th><th>SciFact</th><th>MMCS</th><th>Active</th></tr></thead>
+    <tbody>
+      <tr><td>8x k=64</td><td class="bad">64.6%</td><td>85.2%</td><td>0.584</td><td>0.287</td><td>2,954</td></tr>
+      <tr><td>16x k=64</td><td class="bad">64.9%</td><td>84.7%</td><td>0.571</td><td>0.300</td><td>4,426</td></tr>
+      <tr><td>8x k=128</td><td>76.4%</td><td>85.7%</td><td class="best">0.626</td><td>0.232</td><td>719</td></tr>
+      <tr style="background:var(--green-dim)"><td><strong>4x k=128</strong></td><td class="best"><strong>79.6%</strong></td><td class="best"><strong>86.5%</strong></td><td>0.621</td><td class="best"><strong>0.193</strong></td><td>402</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="callout callout--ok"><strong>k=128 at 4x: CLINC150 gap dropped from 19.6% to 4.5%.</strong> SciFact nearly matches raw. Only 402 active features but each is highly distinct (MMCS 0.193). Half the parameters.</div>
+  <span class="leaf">Leaf: 16x expansion abandoned (same as 8x but more dead)</span>
+  <p><span class="status status--published">Published</span> All three models to <code>enjalot/sae-all-MiniLM-L6-v2-FineWeb-RedPajama-Pile-150M</code></p>
+</div>
+
+<div class="entry">
+  <h2>The Reduction Trap: 2x and 1x Expansion</h2>
+  <p>If 4x k=128 was good, would 2x or 1x be better? Tested in autoresearch.</p>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Config</th><th>Features</th><th>Density</th><th>Composite</th><th>CLINC150</th><th>MMCS</th></tr></thead>
+    <tbody>
+      <tr><td>4x k=128</td><td>1,536</td><td>8.3%</td><td>0.667</td><td>0.609</td><td>0.165</td></tr>
+      <tr><td>2x k=256</td><td>768</td><td>33.3%</td><td class="best">0.766</td><td>0.794</td><td>0.159</td></tr>
+      <tr><td>1x k=256</td><td>384</td><td>66.7%</td><td class="best">0.776</td><td class="best">0.805</td><td class="best">0.115</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="callout callout--warn"><strong>Better metrics but not better features.</strong> At 1x expansion with 66.7% density, the SAE is essentially learning a sparse rotation &mdash; not interpretable concepts. The "improvement" comes from less compression, not better feature quality.</div>
+  <span class="leaf">Leaf: Low expansion + high k = rotation, not interpretation</span>
+</div>
+
+<div class="entry">
+  <h2>Jina v5 Text Nano Baseline</h2>
+  <p>Evaluated raw embedding quality of <code>jinaai/jina-embeddings-v5-text-nano</code> (768D, task-specific LoRA adapters) as a potential target for SAE training.</p>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Task</th><th>jina-v5 raw</th><th>MiniLM raw</th><th>Delta</th></tr></thead>
+    <tbody>
+      <tr><td>SST-2</td><td class="best">82.9%</td><td>80.6%</td><td>+2.3%</td></tr>
+      <tr><td>BANKING77</td><td class="best">90.3%</td><td>87.7%</td><td>+2.6%</td></tr>
+      <tr><td>CLINC150 (retrieval adapter)</td><td class="best">87.5%</td><td>84.1%</td><td>+3.4%</td></tr>
+      <tr><td>STS-B</td><td class="best">0.957</td><td>0.881</td><td>+7.6%</td></tr>
+      <tr><td>AG News</td><td>78.7%</td><td class="best">89.9%</td><td>-11.2%</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Higher ceiling on fine-grained tasks. <strong>Critical finding: task adapter choice matters hugely</strong> &mdash; <code>classification</code> adapter gives 30.6% on CLINC150 vs <code>retrieval</code> at 87.5%.</p>
+  <span class="status status--planned">Planned: train SAE on jina embeddings</span>
+</div>
+</div>
+
+<!-- ═══════════ DAY 4: March 31 ═══════════ -->
+<div class="day">
+<div class="day-label">March 31 &mdash; Autoresearch</div>
+
+<div class="entry">
+  <h2>Constrained Autoresearch Setup</h2>
+  <p>Fixed architecture at <strong>4x k=128</strong> to force improvements in training procedure, not architectural shortcuts. Built Karpathy-style experiment loop: <code>train.py</code> (editable) + <code>prepare.py</code> (locked eval) + <code>program.md</code> (agent instructions). Fast eval: CLINC150 + SciFact + MMCS composite score in ~25 seconds.</p>
+
+  <h3>20 Individual Ideas Tested</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Rank</th><th>Idea</th><th>Composite</th><th>CLINC150</th><th>SciFact</th><th>vs Baseline</th></tr></thead>
+    <tbody>
+      <tr style="background:var(--green-dim)"><td>1</td><td><strong>Cosine decorrelation (0.01)</strong></td><td class="best">0.604</td><td>0.425</td><td class="best">0.607</td><td class="best">+0.028</td></tr>
+      <tr><td>2</td><td>More data (5M)</td><td>0.597</td><td>0.404</td><td class="best">0.611</td><td>+0.021</td></tr>
+      <tr><td>3</td><td>Dead threshold 10K</td><td>0.596</td><td>0.410</td><td>0.598</td><td>+0.020</td></tr>
+      <tr><td>4</td><td>Tilted ERM 0.002</td><td>0.594</td><td class="best">0.416</td><td>0.584</td><td>+0.018</td></tr>
+      <tr><td>5</td><td>Longer warmup (1000)</td><td>0.593</td><td class="best">0.424</td><td>0.572</td><td>+0.017</td></tr>
+      <tr><td colspan="6" style="color:var(--text-dim);font-style:italic;text-align:center">... 13 more ideas below baseline or marginal ...</td></tr>
+      <tr><td>18</td><td class="bad">Batch 2048</td><td class="bad">0.550</td><td class="bad">0.305</td><td>0.584</td><td class="bad">-0.026</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout callout--ok"><strong>Cosine decorrelation is the clear winner.</strong> Penalizes |cos_sim| between decoder weight vectors. Unlike squared cosine, it catches even moderate similarity. Improves both CLINC150 and SciFact.</div>
+
+  <h3>Combinations Tested</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Combination</th><th>Composite</th><th>vs Winner Alone</th></tr></thead>
+    <tbody>
+      <tr style="background:var(--green-dim)"><td><strong>decorr_cosine alone</strong></td><td class="best"><strong>0.604</strong></td><td>&mdash;</td></tr>
+      <tr><td>decorr + warmup_1000</td><td>0.598</td><td>-0.006</td></tr>
+      <tr><td>decorr + tilt_0.002</td><td>0.588</td><td>-0.016</td></tr>
+      <tr><td>decorr + dead_10k</td><td>0.583</td><td>-0.021</td></tr>
+      <tr><td>decorr + dead_10k + tilt</td><td>0.581</td><td>-0.023</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="callout callout--warn"><strong>No combination beats the winner alone.</strong> The additions interfere with decorrelation gradients. Cosine decorrelation at 0.01 weight is the sole training improvement to keep.</div>
+  <span class="leaf">Leaf: tilted ERM, frequency penalty, orthogonal reinit, variance weighting &mdash; all abandoned</span>
+  <span class="leaf">Leaf: combinations hurt &mdash; decorr works best alone</span>
+</div>
+</div>
+
+<!-- ═══════════ DAY 5: April 1 ═══════════ -->
+<div class="day">
+<div class="day-label">April 1 &mdash; Production & Nomic</div>
+
+<div class="entry">
+  <h2>Production: 4x k=128 + Decorrelation</h2>
+  <p>Integrated <code>decorr_alpha</code> into the main trainer and launched 150M production run on Modal A10G. <span class="status status--running">Running</span></p>
+</div>
+
+<div class="entry">
+  <h2>Nomic Data Scaling Sweep</h2>
+  <p>Training SAE on <code>nomic-embed-text-v1.5</code> (768D) Wikipedia embeddings with 4 data volumes: 2M, 5M, 10M, 20M. Tests how much data is needed before quality plateaus. <span class="status status--running">Running</span></p>
+
+  <h3>MiniLM Training Curves: Early Stopping Analysis</h3>
+  <p>From the 150M production curves, <strong>quality plateaus at ~25% of training</strong>:</p>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>% of Data</th><th>Samples</th><th>8x k=64 FVU</th><th>% of Final Quality</th></tr></thead>
+    <tbody>
+      <tr><td>5%</td><td>7.5M</td><td>0.227</td><td>~70%</td></tr>
+      <tr><td>10%</td><td>15M</td><td>0.175</td><td>~85%</td></tr>
+      <tr><td>25%</td><td>37.5M</td><td>0.163</td><td>~95%</td></tr>
+      <tr><td>50%</td><td>75M</td><td>0.157</td><td>~98%</td></tr>
+      <tr><td>100%</td><td>150M</td><td>0.156</td><td>100%</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="callout callout--ok"><strong>15-25M samples captures 85-95% of quality.</strong> For nomic at 768D, this means we may not need to embed more data beyond what's already on Modal (Wikipedia 20M + PubMed 60M).</div>
+</div>
+</div>
+
+<!-- ═══════════ OPEN THREADS ═══════════ -->
+<div class="day">
+<div class="day-label">Open Threads &mdash; What's Left to Try</div>
+
+<div class="entry">
+  <h2>Active & Planned</h2>
+  <div class="grid-2">
+    <div class="card" style="border-left:3px solid var(--ok)">
+      <div class="card-label" style="color:var(--ok)"><span class="dot" style="background:var(--ok)"></span> Running Now</div>
+      <p style="font-size:13px"><strong>MiniLM 4x k=128 + decorr</strong> &mdash; 150M production run<br>
+      <strong>Nomic data scaling</strong> &mdash; 2M/5M/10M/20M sweep</p>
+    </div>
+    <div class="card" style="border-left:3px solid var(--blue)">
+      <div class="card-label" style="color:var(--blue)"><span class="dot" style="background:var(--blue)"></span> Next Up</div>
+      <p style="font-size:13px"><strong>Nomic production SAE</strong> &mdash; best config from scaling sweep<br>
+      <strong>Jina v5 SAE</strong> &mdash; needs data pipeline in latent-data-modal<br>
+      <strong>Eval on nomic</strong> &mdash; hard suite on nomic SAE</p>
+    </div>
+  </div>
+
+  <h3>Unexplored Directions</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Direction</th><th>Why It Might Help</th><th>Effort</th></tr></thead>
+    <tbody>
+      <tr><td><strong>BatchTopK</strong></td><td>Select top-k across the batch, not per-sample. Better feature utilization.</td><td>Medium (architecture change)</td></tr>
+      <tr><td><strong>PCA initialization</strong></td><td>Initialize decoder from PCA of training data. Faster convergence.</td><td>Low (init hook)</td></tr>
+      <tr><td><strong>Matryoshka multi-scale loss</strong></td><td>Train at multiple k simultaneously. From chanind research.</td><td>Medium</td></tr>
+      <tr><td><strong>Learned LISTA</strong> (with S matrix)</td><td>The full LISTA with a learned low-rank S matrix, not decoder correlations.</td><td>High</td></tr>
+      <tr><td><strong>Feature splitting/merging</strong></td><td>Periodically split overused features, merge redundant ones.</td><td>Medium</td></tr>
+      <tr><td><strong>Multi-epoch training</strong></td><td>Does repeating data help or hurt? Curves suggest diminishing returns.</td><td>Low (config change)</td></tr>
+      <tr><td><strong>Mixed-domain data</strong></td><td>Wikipedia + PubMed for nomic. Does domain diversity help?</td><td>Low (config change)</td></tr>
+      <tr><td><strong>Image embeddings</strong></td><td>CLIP/SigLIP SAE. Same mechanics, different modality.</td><td>High (pipeline)</td></tr>
+      <tr><td><strong>Late interaction</strong> (ColBERT)</td><td>Per-token SAEs. New architecture challenge.</td><td>High</td></tr>
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<div class="entry">
+  <h2>What We Learned</h2>
+  <div class="grid-2">
+    <div class="callout callout--ok" style="margin:0"><strong>Things that work:</strong><br>TopK architecture, 4-8x expansion, auxk_alpha=1/32, cosine decorrelation loss, A10G for training, CLINC150+SciFact+MMCS as eval metrics</div>
+    <div class="callout callout--dead" style="margin:0"><strong>Things that don't:</strong><br>Gated SAE, LISTA (decoder variant), multi_topk, large expansion (32x), T4 GPUs, frequency penalty, orthogonal reinit, combining regularizers</div>
+  </div>
+  <div class="divider"></div>
+  <div class="grid-3">
+    <div class="card kpi"><div class="kpi-value" style="color:var(--ok)">~50</div><div class="kpi-label">Total Experiments</div></div>
+    <div class="card kpi"><div class="kpi-value" style="color:var(--amber)">~$15</div><div class="kpi-label">Total Modal Cost</div></div>
+    <div class="card kpi"><div class="kpi-value" style="color:var(--teal)">3</div><div class="kpi-label">Published Models</div></div>
+  </div>
+</div>
+</div>
+
+</div><!-- /page -->
+</body>
+</html>

@@ -1,8 +1,9 @@
-name: arch_sweep
+name: arch_sweep_v2
 description: >
-  SAE architecture comparison at fixed compute budget.
-  Uses MiniLM 3-source mix (FineWeb + RedPajama + Pile).
-  Ready to run once data mix is finalized — update datasets paths as needed.
+  Architecture sweep with proper dead feature handling.
+  Key changes from v1: auxk_alpha=1/32, dead_feature_threshold=50000,
+  multi_topk_fvu scaled by 1/8 (handled in code).
+  10M samples pilot on MiniLM 3-source mix.
 
 data:
   datasets:
@@ -23,16 +24,19 @@ train:
   grad_acc_steps: 2
   lr_warmup_steps: 1000
   use_amp: true
-  save_every: 1000
+  save_every: 5000
+  auxk_alpha: 0.03125
+  dead_feature_threshold: 50000
 
 logging:
   use_wandb: true
   wandb_project: latent-sae-arch-sweep
   wandb_tags:
-    - arch_sweep
-  wandb_group: arch_sweep_10M
+    - arch_sweep_v2
+    - auxk_fixed
+  wandb_group: arch_sweep_v2_10M
   results_dir: experiments/results
-  save_model: true
+  save_model: false
 
 infra:
   gpu_type: a10g

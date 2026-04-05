@@ -10,6 +10,7 @@ class SaeType(str, Enum):
     TOPK = "topk"
     GATED = "gated"
     JUMPRELU = "jumprelu"
+    LISTA = "lista"
 
 
 class LRSchedule(str, Enum):
@@ -63,6 +64,27 @@ class SaeConfig(Serializable):
 
     k_anneal_pct: float = 0.3
     """Fraction of training to anneal k over (0.3 = anneal for first 30% of steps)."""
+
+    # -- LISTA (Learned ISTA) --
+    # Adds lateral inhibition: correlated features suppress each other before top-k.
+    # Uses decoder weight correlations (no extra learned params).
+    # See: Gregor & LeCun 2010, PLANS.md
+    lista_eta: float = 0.1
+    """Inhibition strength for LISTA. 0.1 = conservative, 0.3 = aggressive."""
+
+    lista_steps: int = 1
+    """Number of LISTA recurrence steps. 1 is standard."""
+
+    decorr_alpha: float = 0.0
+    """Decoder decorrelation loss weight. Penalizes similar decoder vectors.
+    0 = disabled. 0.01 = recommended (cosine abs penalty). From autoresearch."""
+
+    max_fire_rate: float = 0.0
+    """Maximum feature fire rate. Features exceeding this rate get penalized.
+    0 = disabled. 0.5 = penalize features firing on >50% of inputs."""
+
+    fire_rate_penalty: float = 1.0
+    """Weight of the fire rate penalty loss."""
 
 
 @dataclass

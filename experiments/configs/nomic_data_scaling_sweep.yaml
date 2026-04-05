@@ -1,0 +1,5 @@
+# Data scaling sweep for nomic: how much data do we need?
+# Uses Wikipedia-en nomic embeddings (41 shards, ~20M samples).
+# Tests 2M, 5M, 10M, 20M to find the diminishing returns curve.
+sweep:
+  data.n_samples: [2000000, 5000000, 10000000, 20000000]
