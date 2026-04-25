@@ -11,6 +11,8 @@ class SaeType(str, Enum):
     GATED = "gated"
     JUMPRELU = "jumprelu"
     LISTA = "lista"
+    BATCHTOPK = "batchtopk"
+    MATRYOSHKA = "matryoshka"
 
 
 class LRSchedule(str, Enum):
@@ -85,6 +87,41 @@ class SaeConfig(Serializable):
 
     fire_rate_penalty: float = 1.0
     """Weight of the fire rate penalty loss."""
+
+    # -- BatchTopK --
+    # Apply top-k sparsity across the entire batch rather than per-sample.
+    # Allows harder samples to use more features and easier ones fewer, with the
+    # average still = k. During inference we use a learned threshold (the EMA of
+    # the smallest accepted pre-activation seen during training).
+    batchtopk_threshold: float = 0.0
+    """Learned inference threshold for BatchTopK (populated during training)."""
+
+    batchtopk_threshold_beta: float = 0.999
+    """EMA decay for the BatchTopK threshold."""
+
+    # -- Matryoshka --
+    # Nested SAE: reconstruction loss is computed at multiple (n_latents, k)
+    # levels, with smaller levels nested inside larger ones. Forces early
+    # features to be independently useful. See SAEBench (127-saebench.md).
+    matryoshka_sizes: str = ""
+    """Comma-separated list of latent counts per nesting level. Largest must
+    equal num_latents. Example: '256,1024,4096'."""
+
+    matryoshka_ks: str = ""
+    """Comma-separated list of k values per nesting level, matching
+    matryoshka_sizes. Example: '8,16,32'."""
+
+    matryoshka_use_batchtopk: bool = False
+    """Use BatchTopK selection at each matryoshka level instead of per-sample
+    TopK. BatchTopK picks top (B*k) pre-activations across the whole batch so
+    harder samples get more features and easier ones fewer. At inference we
+    fall back to a learned EMA threshold (shared across all levels)."""
+
+    # -- SAELens Apr-2024 recipe support --
+    decoder_init_norm: float = 0.0
+    """If > 0, initialize each decoder row to this norm at init (instead of
+    unit norm). SAELens's current default is 0.1 for L1 SAEs. Set to 0 for
+    the old unit-norm init (still gated by normalize_decoder)."""
 
 
 @dataclass

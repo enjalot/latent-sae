@@ -80,9 +80,38 @@ class Sae(nn.Module):
                            device=device, dtype=dtype)
             )
 
+        if cfg.sae_type == SaeType.BATCHTOPK or getattr(cfg, 'matryoshka_use_batchtopk', False):
+            # Running estimate of the smallest accepted pre-activation during
+            # training (populated via EMA in forward). Used at inference when
+            # we don't have a full batch available.
+            self.register_buffer("batchtopk_threshold",
+                                 torch.tensor(cfg.batchtopk_threshold or 0.0,
+                                              device=device, dtype=dtype))
+
+        if cfg.sae_type == SaeType.MATRYOSHKA:
+            sizes = [int(s) for s in cfg.matryoshka_sizes.split(",") if s.strip()]
+            ks = [int(s) for s in cfg.matryoshka_ks.split(",") if s.strip()]
+            if not sizes or len(sizes) != len(ks):
+                raise ValueError(
+                    f"Matryoshka requires matryoshka_sizes and matryoshka_ks "
+                    f"with equal length; got sizes={sizes}, ks={ks}")
+            if sizes[-1] != self.num_latents:
+                raise ValueError(
+                    f"largest matryoshka_sizes entry ({sizes[-1]}) must equal "
+                    f"num_latents ({self.num_latents})")
+            self._matryoshka_sizes = sizes
+            self._matryoshka_ks = ks
+
         self.W_dec = nn.Parameter(self.encoder.weight.data.clone() if hasattr(self, 'encoder') else self.W_gate.weight.data.clone()) if decoder else None
         if decoder and self.cfg.normalize_decoder:
             self.set_decoder_norm_to_unit_norm()
+            # SAELens Apr-2024 recipe: rescale decoder rows to a fixed small norm
+            # (default 0.1 for L1 SAEs) AFTER unit-norming, so init still has
+            # consistent direction but a smaller scale. Skipped when == 0.
+            init_norm = getattr(self.cfg, 'decoder_init_norm', 0.0) or 0.0
+            if init_norm > 0:
+                with torch.no_grad():
+                    self.W_dec.data.mul_(init_norm)
 
         self.b_dec = nn.Parameter(torch.zeros(d_in, dtype=dtype, device=device))
 
@@ -259,13 +288,20 @@ class Sae(nn.Module):
         return EncoderOutput(final_acts, final_indices)
 
     def encode(self, x: Tensor) -> EncoderOutput:
-        """Encode input using the configured architecture variant."""
+        """Encode input using the configured architecture variant (inference)."""
         if self.cfg.sae_type == SaeType.GATED:
             return self.encode_gated(x)
         elif self.cfg.sae_type == SaeType.JUMPRELU:
             return self.encode_jumprelu(x)
         elif self.cfg.sae_type == SaeType.LISTA:
             return self.encode_lista(x)
+        elif self.cfg.sae_type == SaeType.BATCHTOPK:
+            top_acts, top_indices, _ = self.encode_batchtopk_inference(x, self.cfg.k)
+            return EncoderOutput(top_acts, top_indices)
+        elif self.cfg.sae_type == SaeType.MATRYOSHKA:
+            # At inference, use the largest level's features (full SAE behavior)
+            latents = self.pre_acts(x)
+            return EncoderOutput(*latents.topk(self._matryoshka_ks[-1], sorted=False))
         else:
             return self.encode_topk(x)
 
@@ -274,14 +310,62 @@ class Sae(nn.Module):
         y = decoder_impl(top_indices, top_acts.to(self.dtype), self.W_dec.mT)
         return y + self.b_dec
 
+    def encode_batchtopk(self, x: Tensor, k: int) -> tuple[Tensor, Tensor, Tensor]:
+        """BatchTopK: pick the top (k * batch_size) scores across the whole batch.
+
+        Returns (top_acts, top_indices, pre_acts) with shapes (B, k) matching
+        TopK's interface — samples with fewer-than-k selections are zero-padded.
+        During training we also update an EMA of the threshold (smallest
+        accepted pre-activation) for inference use.
+        """
+        pre_acts = self.pre_acts(x)
+        B, N = pre_acts.shape
+        total = B * k
+        # Flat top-(B*k); pre_acts is relu'd in pre_acts()
+        flat = pre_acts.reshape(-1)
+        vals, flat_idx = flat.topk(total, sorted=False)
+        # Scatter back per-sample: row = flat_idx // N, col = flat_idx % N
+        rows = flat_idx // N
+        cols = flat_idx % N
+        # Build (B, k) by ranking flat values within each row
+        # Strategy: create (B, N) zero mask then place; select per-row top-k.
+        mask = torch.zeros_like(pre_acts)
+        mask[rows, cols] = vals
+        top_acts, top_indices = mask.topk(k, sorted=False)
+        # Filter padding (rows with fewer accepted than k have zero top_acts for extras)
+        if self.training:
+            min_accepted = vals.min()
+            ema = self.cfg.batchtopk_threshold_beta
+            self.batchtopk_threshold.mul_(ema).add_(min_accepted.detach() * (1 - ema))
+        return top_acts, top_indices, pre_acts
+
+    def encode_batchtopk_inference(self, x: Tensor, k: int) -> tuple[Tensor, Tensor, Tensor]:
+        """At inference we don't have a batch — apply learned threshold, then cap at k."""
+        pre_acts = self.pre_acts(x)
+        threshold = self.batchtopk_threshold.to(pre_acts.dtype)
+        gated = torch.where(pre_acts >= threshold, pre_acts,
+                            pre_acts.new_zeros(()))
+        # Cap at k active per sample for safety
+        top_acts, top_indices = gated.topk(k, sorted=False)
+        return top_acts, top_indices, pre_acts
+
     def forward(self, x: Tensor, dead_mask: Optional[Tensor] = None, k_override: Optional[int] = None) -> ForwardOutput:
         # k_override allows the trainer to dynamically change k (used for k-annealing)
         k = k_override or self.cfg.k
+
+        # Matryoshka has its own forward: multi-level reconstruction losses
+        if self.cfg.sae_type == SaeType.MATRYOSHKA:
+            return self._forward_matryoshka(x, dead_mask)
 
         # Encode
         if self.cfg.sae_type == SaeType.TOPK:
             pre_acts = self.pre_acts(x)
             top_acts, top_indices = pre_acts.topk(k, sorted=False)
+        elif self.cfg.sae_type == SaeType.BATCHTOPK:
+            if self.training:
+                top_acts, top_indices, pre_acts = self.encode_batchtopk(x, k)
+            else:
+                top_acts, top_indices, pre_acts = self.encode_batchtopk_inference(x, k)
         elif self.cfg.sae_type == SaeType.LISTA:
             pre_acts = self.pre_acts(x)  # needed for auxk
             top_acts, top_indices = self.encode_lista(x, k=k)
@@ -340,6 +424,78 @@ class Sae(nn.Module):
             auxk_loss,
             multi_topk_fvu,
         )
+
+    def _forward_matryoshka(self, x: Tensor,
+                            dead_mask: Optional[Tensor] = None) -> ForwardOutput:
+        """Matryoshka forward: compute reconstruction loss at each nesting level.
+
+        At each level i with latent count n_i and sparsity k_i:
+          - pick top-k_i activations among pre_acts[:, :n_i]
+          - decode with W_dec[:n_i, :]
+          - accumulate FVU
+        Primary sae_out / top_acts / top_indices reported for the LARGEST level
+        so downstream eval treats this like a standard SAE.
+        """
+        sizes = self._matryoshka_sizes
+        ks = self._matryoshka_ks
+        pre_acts = self.pre_acts(x)       # (B, N_total)
+        total_variance = (x - x.mean(0)).pow(2).sum()
+        use_btk = getattr(self.cfg, 'matryoshka_use_batchtopk', False)
+
+        def _select(sub: Tensor, lvl_k: int):
+            """Return (lvl_acts, lvl_idx) of shape (B, lvl_k).
+
+            When use_btk: pick top (B * lvl_k) pre_acts across the batch,
+            then project back to a per-sample (B, lvl_k) tensor with zero
+            padding for samples that received fewer than lvl_k. Matches
+            Sae.encode_batchtopk but operates on a matryoshka level's
+            pre_acts slice.
+            """
+            if not use_btk:
+                return sub.topk(lvl_k, sorted=False)
+            B, N = sub.shape
+            total = B * lvl_k
+            flat = sub.reshape(-1)
+            vals, flat_idx = flat.topk(total, sorted=False)
+            rows = flat_idx // N
+            cols = flat_idx % N
+            mask = torch.zeros_like(sub)
+            mask[rows, cols] = vals
+            return mask.topk(lvl_k, sorted=False)
+
+        per_level_fvu = []
+        for lvl_n, lvl_k in zip(sizes, ks):
+            sub = pre_acts[:, :lvl_n]
+            lvl_acts, lvl_idx = _select(sub, lvl_k)
+            # Decode using the first lvl_n decoder rows
+            y = decoder_impl(lvl_idx, lvl_acts.to(self.dtype),
+                             self.W_dec[:lvl_n].mT)
+            recon = y + self.b_dec
+            e = recon - x
+            per_level_fvu.append(e.pow(2).sum() / total_variance)
+
+        # Track BatchTopK threshold for inference (EMA of smallest accepted
+        # pre-act at the largest level during training — matches standalone
+        # BatchTopK path).
+        if use_btk and self.training:
+            largest_n, largest_k = sizes[-1], ks[-1]
+            total = pre_acts.shape[0] * largest_k
+            min_accepted = pre_acts[:, :largest_n].reshape(-1).topk(total).values.min()
+            ema = self.cfg.batchtopk_threshold_beta
+            if hasattr(self, 'batchtopk_threshold'):
+                self.batchtopk_threshold.mul_(ema).add_(min_accepted.detach() * (1 - ema))
+
+        # The primary output uses the LARGEST level
+        largest_n, largest_k = sizes[-1], ks[-1]
+        top_acts, top_indices = _select(pre_acts[:, :largest_n], largest_k) if use_btk else pre_acts.topk(largest_k, sorted=False)
+        sae_out = self.decode(top_acts, top_indices)
+
+        # Use mean FVU across levels as the training loss surrogate
+        fvu = torch.stack(per_level_fvu).mean()
+        multi_topk_fvu = sae_out.new_tensor(0.0)
+        auxk_loss = sae_out.new_tensor(0.0)
+        return ForwardOutput(sae_out, top_acts, top_indices, fvu, auxk_loss,
+                             multi_topk_fvu)
 
     @torch.no_grad()
     def set_decoder_norm_to_unit_norm(self):
