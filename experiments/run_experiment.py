@@ -88,6 +88,7 @@ def run_single_experiment(config: ExperimentConfig, device: str = "auto") -> dic
         shuffle=config.data.shuffle,
         warm_up_cache=False,
         file_type=config.data.file_type,
+        raw_dtype=config.data.raw_dtype,
     )
 
     # Subsample if requested (for benchmarks)

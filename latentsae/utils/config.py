@@ -134,6 +134,15 @@ class TrainConfig(Serializable):
     save_every: int = 1000
     """Save SAEs every `save_every` steps."""
 
+    num_workers: int = 4
+    """DataLoader worker count. Lower to 0–2 for giant-shard datasets where
+    workers would otherwise multiply RSS and thrash the page cache."""
+
+    shuffle: bool = True
+    """DataLoader shuffle. True interleaves examples (essential when
+    training on multiple source datasets so the SAE doesn't catastrophically
+    fit domain 1 then forget it when domain 2 starts)."""
+
     checkpoints_directory: str = "/checkpoints"
 
     log_to_wandb: bool = True

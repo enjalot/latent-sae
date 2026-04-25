@@ -33,6 +33,8 @@ class DataConfig:
     shuffle: bool = True
     n_samples: Optional[int] = None  # None = use all, int = subsample (for benchmarks)
     random_seed: int = 42
+    raw_dtype: str = "float32"   # element dtype for raw-memmap .npy (no header). Proper
+                                 # .npy files auto-detect dtype and ignore this field.
 
 
 @dataclass

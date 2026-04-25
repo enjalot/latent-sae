@@ -89,8 +89,9 @@ class SaeTrainer:
         dl = DataLoader(
             self.dataset,
             batch_size=cfg.batch_size,
-            num_workers=4,
+            num_workers=cfg.num_workers,
             pin_memory=True,
+            shuffle=cfg.shuffle,
         )
         pbar = tqdm(dl, desc="Training", disable=not rank_zero)
 
