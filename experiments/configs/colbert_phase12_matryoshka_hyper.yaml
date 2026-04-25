@@ -1,0 +1,41 @@
+name: colbert_mxbai_phase12_matryoshka_hyper
+description: >
+  Phase 12 — Matryoshka HYPER. 65536 latents with 6-level nesting.
+  Tests whether the scaling trend (MEGA 1642 live → ULTRA 3288 live) continues.
+  If returns diminish, this is where we plateau.
+
+data:
+  datasets:
+    - /data/embeddings/fineweb-edu-sample-10BT-chunked-500-mxbai-edge-32m/train
+  d_in: 64
+  file_type: npy
+  raw_dtype: float16
+  shuffle: true
+  n_samples: 200000000
+
+sae:
+  sae_type: matryoshka
+  expansion_factor: 1024
+  k: 32
+  k_anneal: false
+  matryoshka_sizes: "512,2048,8192,16384,32768,65536"
+  matryoshka_ks: "8,16,24,32,32,32"
+
+train:
+  batch_size: 8192
+  grad_acc_steps: 1
+  lr_warmup_steps: 2000
+  use_amp: true
+  save_every: 10000
+  auxk_alpha: 0.0
+  dead_feature_threshold: 50000
+  num_workers: 2
+
+logging:
+  use_wandb: true
+  wandb_project: latent-sae
+  wandb_run_name: colbert_mxbai_phase12_matryoshka_hyper
+  wandb_tags: [colbert, mxbai-32m, phase12, matryoshka, hyper]
+  wandb_group: colbert_phase12
+  results_dir: experiments/results
+  save_model: true

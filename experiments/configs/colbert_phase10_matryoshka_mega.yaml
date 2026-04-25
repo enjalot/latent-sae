@@ -1,0 +1,40 @@
+name: colbert_mxbai_phase10_matryoshka_mega
+description: >
+  Phase 10 — Matryoshka MEGA. 16384 latents with 4-level nesting. Targets
+  thousands of live features building on Phase 9 Matryoshka big (978 live).
+
+data:
+  datasets:
+    - /data/embeddings/fineweb-edu-sample-10BT-chunked-500-mxbai-edge-32m/train
+  d_in: 64
+  file_type: npy
+  raw_dtype: float16
+  shuffle: true
+  n_samples: 150000000   # 1.5× to give extra latents a chance to activate
+
+sae:
+  sae_type: matryoshka
+  expansion_factor: 256
+  k: 32
+  k_anneal: false
+  matryoshka_sizes: "512,2048,8192,16384"
+  matryoshka_ks: "8,16,24,32"
+
+train:
+  batch_size: 8192
+  grad_acc_steps: 1
+  lr_warmup_steps: 2000
+  use_amp: true
+  save_every: 10000
+  auxk_alpha: 0.0
+  dead_feature_threshold: 50000
+  num_workers: 2
+
+logging:
+  use_wandb: true
+  wandb_project: latent-sae
+  wandb_run_name: colbert_mxbai_phase10_matryoshka_mega
+  wandb_tags: [colbert, mxbai-32m, phase10, matryoshka, mega]
+  wandb_group: colbert_phase10
+  results_dir: experiments/results
+  save_model: true

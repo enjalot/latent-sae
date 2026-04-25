@@ -1,0 +1,46 @@
+name: colbert_mxbai_phase15_matryoshka_big_multidomain
+description: >
+  Phase 15 Thread 2 — Matryoshka big (8192 latents) on 3-domain mix.
+  Data scaling sweep: the sweep yaml varies n_samples across 200M / 400M /
+  800M to find whether multi-domain's under-live-count is an
+  under-training artifact or a real diversity-tax.
+
+data:
+  datasets:
+    - /data/embeddings/fineweb-edu-sample-10BT-chunked-500-mxbai-edge-32m/train
+    - /data/embeddings/RedPajama-Data-V2-sample-10B-chunked-500-mxbai-edge-32m/train
+    - /data/embeddings/pile-uncopyrighted-chunked-500-mxbai-edge-32m/train
+  d_in: 64
+  file_type: npy
+  raw_dtype: float16
+  shuffle: true
+  n_samples: 200000000
+
+sae:
+  sae_type: matryoshka
+  expansion_factor: 128      # 64 * 128 = 8192 latents
+  k: 32
+  k_anneal: false
+  matryoshka_sizes: "512,2048,8192"
+  matryoshka_ks: "8,16,32"
+
+train:
+  batch_size: 8192
+  grad_acc_steps: 1
+  lr_warmup_steps: 2000
+  use_amp: true
+  save_every: 20000
+  auxk_alpha: 0.0
+  dead_feature_threshold: 50000
+  num_workers: 2             # keep low: per-worker mmap is fine, but fork
+                             # bookkeeping adds up fast at 78-shard scale
+  shuffle: true
+
+logging:
+  use_wandb: true
+  wandb_project: latent-sae
+  wandb_run_name: colbert_mxbai_phase15_matryoshka_big_multidomain
+  wandb_tags: [colbert, mxbai-32m, phase15, matryoshka, multidomain, data-scaling]
+  wandb_group: colbert_phase15
+  results_dir: experiments/results
+  save_model: true

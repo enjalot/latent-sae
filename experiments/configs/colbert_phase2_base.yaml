@@ -1,0 +1,44 @@
+name: colbert_mxbai_phase2
+description: >
+  Phase 2 — sub-d_in sparsity + auxk_alpha revival sweep on mxbai-32m ColBERT.
+  Phase 1 showed k >= d_in (=64) is degenerate (FVU -> 0 trivially), and that
+  auxk_alpha=0.03125 leaves 78-92% dead features at k=32 with modest expansion.
+  This sweep explores k < d_in where sparsity is meaningful, and tests whether
+  heavier auxk_alpha revives features.
+
+data:
+  datasets:
+    - /data/embeddings/fineweb-edu-sample-10BT-chunked-500-mxbai-edge-32m/train
+  d_in: 64
+  file_type: npy
+  raw_dtype: float16
+  shuffle: true
+  n_samples: 100000000
+
+sae:
+  sae_type: topk
+  expansion_factor: 16   # 1024 latents; anchor at a middle expansion
+  k: 16                  # anchor; swept
+  k_anneal: true
+
+train:
+  batch_size: 8192
+  grad_acc_steps: 1
+  lr_warmup_steps: 2000
+  use_amp: true
+  save_every: 5000
+  auxk_alpha: 0.03125    # anchor; swept
+  dead_feature_threshold: 50000
+  num_workers: 2
+
+logging:
+  use_wandb: true
+  wandb_project: latent-sae
+  wandb_run_name: colbert_mxbai_phase2
+  wandb_tags:
+    - colbert
+    - mxbai-32m
+    - phase2
+  wandb_group: colbert_phase2
+  results_dir: experiments/results
+  save_model: true

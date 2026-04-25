@@ -1,0 +1,42 @@
+name: colbert_mxbai_phase6_scaleup
+description: >
+  Phase 6 — scale-up on the winning recipe. TopK / k=8 / exp=2 / 200M samples.
+  Tests whether dead% and FVU improve with 2× training data.
+
+data:
+  datasets:
+    - /data/embeddings/fineweb-edu-sample-10BT-chunked-500-mxbai-edge-32m/train
+  d_in: 64
+  file_type: npy
+  raw_dtype: float16
+  shuffle: true
+  n_samples: 200000000
+
+sae:
+  sae_type: topk
+  expansion_factor: 2
+  k: 8
+  k_anneal: true
+
+train:
+  batch_size: 8192
+  grad_acc_steps: 1
+  lr_warmup_steps: 2000
+  use_amp: true
+  save_every: 10000
+  auxk_alpha: 0.03125
+  dead_feature_threshold: 50000
+  num_workers: 2
+
+logging:
+  use_wandb: true
+  wandb_project: latent-sae
+  wandb_run_name: colbert_mxbai_phase6_scaleup
+  wandb_tags:
+    - colbert
+    - mxbai-32m
+    - phase6
+    - scaleup
+  wandb_group: colbert_phase6
+  results_dir: experiments/results
+  save_model: true

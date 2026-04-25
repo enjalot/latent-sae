@@ -1,0 +1,43 @@
+name: colbert_mxbai_phase1
+description: >
+  Phase 1 baseline — TopK SAE on mxbai-edge-colbert-v0-32m per-token vectors
+  (dim=64, fp16). Single-dataset (fineweb) for clean k × expansion comparison;
+  3-dataset mix comes in a later phase once shard layout supports cross-
+  dataset shuffling without page-cache thrashing.
+
+data:
+  datasets:
+    - /data/embeddings/fineweb-edu-sample-10BT-chunked-500-mxbai-edge-32m/train
+  d_in: 64
+  file_type: npy
+  raw_dtype: float16    # ignored for header-bearing .npy (auto-detected), kept for clarity
+  shuffle: true
+  n_samples: 100000000  # 100M of 374M; ~10 min/run at baseline, scales with arch size
+
+sae:
+  sae_type: topk
+  expansion_factor: 8   # anchor; swept in phase1_k_expansion_sweep.yaml
+  k: 64                 # anchor; swept
+  k_anneal: true        # anneal 4*k → k over first 30% of training
+
+train:
+  batch_size: 8192
+  grad_acc_steps: 1
+  lr_warmup_steps: 2000
+  use_amp: true
+  save_every: 5000
+  auxk_alpha: 0.03125    # TopK dead-feature revival aux loss
+  dead_feature_threshold: 50000
+  num_workers: 2         # keep low for lazy-memmap data — 0 also fine
+
+logging:
+  use_wandb: false   # `wandb login` first, then flip to true
+  wandb_project: latent-sae
+  wandb_run_name: colbert_mxbai_phase1
+  wandb_tags:
+    - colbert
+    - mxbai-32m
+    - phase1
+  wandb_group: colbert_phase1
+  results_dir: experiments/results
+  save_model: true

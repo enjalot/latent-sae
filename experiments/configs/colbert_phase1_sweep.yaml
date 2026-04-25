@@ -1,0 +1,5 @@
+# Phase 1 sweep for ColBERT mxbai-32m SAE — k × expansion_factor.
+# 3 * 3 = 9 runs, sequential on the 5090. Eval_probes optional afterward.
+sweep:
+  sae.k: [32, 64, 128]
+  sae.expansion_factor: [8, 16, 32]

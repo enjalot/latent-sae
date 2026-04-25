@@ -1,0 +1,4 @@
+# BatchTopK scale sweep at same expansions for fair comparison
+sweep:
+  sae.sae_type: [batchtopk]
+  sae.expansion_factor: [16, 32, 64, 128]

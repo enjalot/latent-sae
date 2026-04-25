@@ -1,0 +1,5 @@
+# Phase 2 sweep — sub-d_in sparsity × auxk_alpha (dead feature revival)
+# 5 * 3 = 15 runs at ~4 min each ≈ 1 hour on the 5090.
+sweep:
+  sae.k: [4, 8, 16, 24, 32]
+  train.auxk_alpha: [0.03125, 0.1, 0.3]

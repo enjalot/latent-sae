@@ -1,0 +1,7 @@
+# Phase 3 — architecture × expansion at k=16.
+# 3 archs * 3 expansions = 9 runs ≈ 35 min on the 5090.
+# Gated and JumpReLU have different sparsity dynamics — JumpReLU learns its
+# own threshold (k_anneal is ignored), Gated decouples gate from magnitude.
+sweep:
+  sae.sae_type: [topk, gated, jumprelu]
+  sae.expansion_factor: [4, 8, 16]

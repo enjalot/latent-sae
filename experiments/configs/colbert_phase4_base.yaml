@@ -1,0 +1,43 @@
+name: colbert_mxbai_phase4
+description: >
+  Phase 4 — k × expansion refinement at small expansion. Phase 3 showed TopK
+  exp=4 (256 latents) matches exp=16 on FVU with dramatically lower dead%.
+  This sweep confirms whether even smaller expansion holds FVU, and whether
+  k=16 is the right sparsity at exp=4.
+
+data:
+  datasets:
+    - /data/embeddings/fineweb-edu-sample-10BT-chunked-500-mxbai-edge-32m/train
+  d_in: 64
+  file_type: npy
+  raw_dtype: float16
+  shuffle: true
+  n_samples: 100000000
+
+sae:
+  sae_type: topk
+  expansion_factor: 4     # anchor; swept
+  k: 16                   # anchor; swept
+  k_anneal: true
+
+train:
+  batch_size: 8192
+  grad_acc_steps: 1
+  lr_warmup_steps: 2000
+  use_amp: true
+  save_every: 5000
+  auxk_alpha: 0.03125
+  dead_feature_threshold: 50000
+  num_workers: 2
+
+logging:
+  use_wandb: true
+  wandb_project: latent-sae
+  wandb_run_name: colbert_mxbai_phase4
+  wandb_tags:
+    - colbert
+    - mxbai-32m
+    - phase4
+  wandb_group: colbert_phase4
+  results_dir: experiments/results
+  save_model: true

@@ -1,0 +1,43 @@
+name: colbert_mxbai_phase3
+description: >
+  Phase 3 — architecture × expansion sweep at k=16 (best Phase 2 sparsity
+  setting for FVU/dead balance). Phase 2 showed auxk_alpha does not
+  meaningfully affect outcomes, so we fix it at 0.03125. Smaller expansion
+  likely yields lower absolute dead% without hurting FVU much.
+
+data:
+  datasets:
+    - /data/embeddings/fineweb-edu-sample-10BT-chunked-500-mxbai-edge-32m/train
+  d_in: 64
+  file_type: npy
+  raw_dtype: float16
+  shuffle: true
+  n_samples: 100000000
+
+sae:
+  sae_type: topk         # swept
+  expansion_factor: 8    # swept
+  k: 16                  # fixed — best sparsity regime from Phase 2
+  k_anneal: true
+
+train:
+  batch_size: 8192
+  grad_acc_steps: 1
+  lr_warmup_steps: 2000
+  use_amp: true
+  save_every: 5000
+  auxk_alpha: 0.03125    # fixed — Phase 2 showed higher values don't help
+  dead_feature_threshold: 50000
+  num_workers: 2
+
+logging:
+  use_wandb: true
+  wandb_project: latent-sae
+  wandb_run_name: colbert_mxbai_phase3
+  wandb_tags:
+    - colbert
+    - mxbai-32m
+    - phase3
+  wandb_group: colbert_phase3
+  results_dir: experiments/results
+  save_model: true

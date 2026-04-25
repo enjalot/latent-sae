@@ -1,0 +1,38 @@
+name: colbert_mxbai_phase8_lista
+description: >
+  Phase 8 — LISTA at winning k/exp. Untested in Phase 3; memory-efficient
+  alternative to gated/topk. Compare to TopK at same config.
+
+data:
+  datasets:
+    - /data/embeddings/fineweb-edu-sample-10BT-chunked-500-mxbai-edge-32m/train
+  d_in: 64
+  file_type: npy
+  raw_dtype: float16
+  shuffle: true
+  n_samples: 100000000
+
+sae:
+  sae_type: lista
+  expansion_factor: 2
+  k: 8
+  k_anneal: true
+
+train:
+  batch_size: 8192
+  grad_acc_steps: 1
+  lr_warmup_steps: 2000
+  use_amp: true
+  save_every: 5000
+  auxk_alpha: 0.03125
+  dead_feature_threshold: 50000
+  num_workers: 2
+
+logging:
+  use_wandb: true
+  wandb_project: latent-sae
+  wandb_run_name: colbert_mxbai_phase8_lista
+  wandb_tags: [colbert, mxbai-32m, phase8, lista]
+  wandb_group: colbert_phase8
+  results_dir: experiments/results
+  save_model: true

@@ -1,0 +1,40 @@
+name: colbert_mxbai_phase10_matryoshka_big_300M
+description: >
+  Phase 10 — Matryoshka big (8192 latents) with 3× training samples.
+  Does more data unlock more coherent features at large scale?
+
+data:
+  datasets:
+    - /data/embeddings/fineweb-edu-sample-10BT-chunked-500-mxbai-edge-32m/train
+  d_in: 64
+  file_type: npy
+  raw_dtype: float16
+  shuffle: true
+  n_samples: 300000000
+
+sae:
+  sae_type: matryoshka
+  expansion_factor: 128
+  k: 32
+  k_anneal: false
+  matryoshka_sizes: "512,2048,8192"
+  matryoshka_ks: "8,16,32"
+
+train:
+  batch_size: 8192
+  grad_acc_steps: 1
+  lr_warmup_steps: 5000
+  use_amp: true
+  save_every: 20000
+  auxk_alpha: 0.0
+  dead_feature_threshold: 50000
+  num_workers: 2
+
+logging:
+  use_wandb: true
+  wandb_project: latent-sae
+  wandb_run_name: colbert_mxbai_phase10_matryoshka_big_300M
+  wandb_tags: [colbert, mxbai-32m, phase10, matryoshka, scaleup]
+  wandb_group: colbert_phase10
+  results_dir: experiments/results
+  save_model: true

@@ -1,0 +1,42 @@
+name: colbert_mxbai_phase6_jumprelu_tuned
+description: >
+  Phase 6 — JumpReLU with higher sparsity_penalty (100× default) to force
+  meaningful sparsity. Phase 3 showed default (1e-3) gives degenerate L0=64.
+
+data:
+  datasets:
+    - /data/embeddings/fineweb-edu-sample-10BT-chunked-500-mxbai-edge-32m/train
+  d_in: 64
+  file_type: npy
+  raw_dtype: float16
+  shuffle: true
+  n_samples: 100000000
+
+sae:
+  sae_type: jumprelu
+  expansion_factor: 2
+  k: 16                   # ignored by JumpReLU (uses learned thresholds)
+  sparsity_penalty: 0.1   # 100× default 1e-3
+
+train:
+  batch_size: 8192
+  grad_acc_steps: 1
+  lr_warmup_steps: 2000
+  use_amp: true
+  save_every: 5000
+  auxk_alpha: 0.0        # JumpReLU doesn't use auxk; avoid noisy interaction
+  dead_feature_threshold: 50000
+  num_workers: 2
+
+logging:
+  use_wandb: true
+  wandb_project: latent-sae
+  wandb_run_name: colbert_mxbai_phase6_jumprelu_tuned
+  wandb_tags:
+    - colbert
+    - mxbai-32m
+    - phase6
+    - jumprelu
+  wandb_group: colbert_phase6
+  results_dir: experiments/results
+  save_model: true

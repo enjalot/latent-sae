@@ -1,0 +1,39 @@
+name: colbert_mxbai_phase7_redpajama
+description: >
+  Phase 7 — cross-dataset validation. Train winning recipe (TopK/k=8/exp=2)
+  on RedPajama per-token ColBERT vectors instead of fineweb. Similar FVU/dead%
+  → recipe is robust.
+
+data:
+  datasets:
+    - /data/embeddings/RedPajama-Data-V2-sample-10B-chunked-500-mxbai-edge-32m/train
+  d_in: 64
+  file_type: npy
+  raw_dtype: float16
+  shuffle: true
+  n_samples: 100000000
+
+sae:
+  sae_type: topk
+  expansion_factor: 2
+  k: 8
+  k_anneal: true
+
+train:
+  batch_size: 8192
+  grad_acc_steps: 1
+  lr_warmup_steps: 2000
+  use_amp: true
+  save_every: 5000
+  auxk_alpha: 0.03125
+  dead_feature_threshold: 50000
+  num_workers: 2
+
+logging:
+  use_wandb: true
+  wandb_project: latent-sae
+  wandb_run_name: colbert_mxbai_phase7_redpajama
+  wandb_tags: [colbert, mxbai-32m, phase7, cross_dataset]
+  wandb_group: colbert_phase7
+  results_dir: experiments/results
+  save_model: true

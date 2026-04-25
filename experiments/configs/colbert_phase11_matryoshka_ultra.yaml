@@ -1,0 +1,41 @@
+name: colbert_mxbai_phase11_matryoshka_ultra
+description: >
+  Phase 11 — Matryoshka ULTRA. 32768 latents, 5-level nesting.
+  Pushes past MEGA (16384, 1642 live) to test whether more latents continue
+  to produce more interpretable features.
+
+data:
+  datasets:
+    - /data/embeddings/fineweb-edu-sample-10BT-chunked-500-mxbai-edge-32m/train
+  d_in: 64
+  file_type: npy
+  raw_dtype: float16
+  shuffle: true
+  n_samples: 200000000
+
+sae:
+  sae_type: matryoshka
+  expansion_factor: 512
+  k: 32
+  k_anneal: false
+  matryoshka_sizes: "512,2048,8192,16384,32768"
+  matryoshka_ks: "8,16,24,32,32"
+
+train:
+  batch_size: 8192
+  grad_acc_steps: 1
+  lr_warmup_steps: 2000
+  use_amp: true
+  save_every: 10000
+  auxk_alpha: 0.0
+  dead_feature_threshold: 50000
+  num_workers: 2
+
+logging:
+  use_wandb: true
+  wandb_project: latent-sae
+  wandb_run_name: colbert_mxbai_phase11_matryoshka_ultra
+  wandb_tags: [colbert, mxbai-32m, phase11, matryoshka, ultra]
+  wandb_group: colbert_phase11
+  results_dir: experiments/results
+  save_model: true

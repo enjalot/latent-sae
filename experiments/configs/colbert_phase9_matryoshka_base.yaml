@@ -1,0 +1,41 @@
+name: colbert_mxbai_phase9_matryoshka
+description: >
+  Phase 9 — Matryoshka SAE. Three nested levels. Largest = 4096 latents.
+  Each level has its own (n_latents, k): smaller = 8 active of 256,
+  medium = 16 of 1024, full = 32 of 4096.
+
+data:
+  datasets:
+    - /data/embeddings/fineweb-edu-sample-10BT-chunked-500-mxbai-edge-32m/train
+  d_in: 64
+  file_type: npy
+  raw_dtype: float16
+  shuffle: true
+  n_samples: 100000000
+
+sae:
+  sae_type: matryoshka
+  expansion_factor: 64         # 64 * 64 = 4096 latents (largest level)
+  k: 32                        # placeholder; actual k comes from matryoshka_ks last entry
+  k_anneal: false              # not compatible with matryoshka multi-level losses
+  matryoshka_sizes: "256,1024,4096"
+  matryoshka_ks: "8,16,32"
+
+train:
+  batch_size: 8192
+  grad_acc_steps: 1
+  lr_warmup_steps: 2000
+  use_amp: true
+  save_every: 5000
+  auxk_alpha: 0.0              # matryoshka doesn't use auxk
+  dead_feature_threshold: 50000
+  num_workers: 2
+
+logging:
+  use_wandb: true
+  wandb_project: latent-sae
+  wandb_run_name: colbert_mxbai_phase9_matryoshka
+  wandb_tags: [colbert, mxbai-32m, phase9, matryoshka]
+  wandb_group: colbert_phase9
+  results_dir: experiments/results
+  save_model: true

@@ -1,0 +1,35 @@
+name: colbert_mxbai_phase13_smoke
+description: Smoke test of multi-dataset loader. Do not use results.
+
+data:
+  datasets:
+    - /data/embeddings/fineweb-edu-sample-10BT-chunked-500-mxbai-edge-32m/train
+    - /data/embeddings/RedPajama-Data-V2-sample-10B-chunked-500-mxbai-edge-32m/train
+    - /data/embeddings/pile-uncopyrighted-chunked-500-mxbai-edge-32m/train
+  d_in: 64
+  file_type: npy
+  raw_dtype: float16
+  shuffle: true
+  n_samples: 500000
+
+sae:
+  sae_type: topk
+  expansion_factor: 4
+  k: 16
+  k_anneal: false
+
+train:
+  batch_size: 4096
+  grad_acc_steps: 1
+  lr_warmup_steps: 100
+  use_amp: true
+  save_every: 999999
+  auxk_alpha: 0.03125
+  dead_feature_threshold: 50000
+  num_workers: 0
+  shuffle: true
+
+logging:
+  use_wandb: false
+  results_dir: experiments/results
+  save_model: false

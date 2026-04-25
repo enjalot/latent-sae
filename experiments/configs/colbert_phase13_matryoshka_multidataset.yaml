@@ -1,0 +1,48 @@
+name: colbert_mxbai_phase13_matryoshka_multidataset
+description: >
+  Phase 13 Thread 1 — Matryoshka HYPER trained on a MIX of fineweb-edu +
+  RedPajama + pile ColBERT token embeddings. Same architecture as
+  phase 12 HYPER; training data is now 3× more diverse. Tests whether
+  domain diversity lifts COHERENT count or changes the THEMATIC tail.
+  DataLoader shuffle=True (interleaves across datasets row-by-row),
+  num_workers=0 (giant lazy memmaps; multi-worker on 3 × 45 GB files
+  invites page-cache thrash).
+
+data:
+  datasets:
+    - /data/embeddings/fineweb-edu-sample-10BT-chunked-500-mxbai-edge-32m/train
+    - /data/embeddings/RedPajama-Data-V2-sample-10B-chunked-500-mxbai-edge-32m/train
+    - /data/embeddings/pile-uncopyrighted-chunked-500-mxbai-edge-32m/train
+  d_in: 64
+  file_type: npy
+  raw_dtype: float16
+  shuffle: true
+  n_samples: 200000000       # ~67M per dataset effective, well under any one shard's 374-395M
+
+sae:
+  sae_type: matryoshka
+  expansion_factor: 1024     # 64 * 1024 = 65536 latents (same as HYPER)
+  k: 32
+  k_anneal: false
+  matryoshka_sizes: "512,2048,8192,16384,32768,65536"
+  matryoshka_ks: "8,16,24,32,32,32"
+
+train:
+  batch_size: 8192
+  grad_acc_steps: 1
+  lr_warmup_steps: 2000
+  use_amp: true
+  save_every: 10000
+  auxk_alpha: 0.0
+  dead_feature_threshold: 50000
+  num_workers: 0             # giant lazy memmaps: single reader is safer
+  shuffle: true              # interleave across datasets
+
+logging:
+  use_wandb: true
+  wandb_project: latent-sae
+  wandb_run_name: colbert_mxbai_phase13_matryoshka_multidataset
+  wandb_tags: [colbert, mxbai-32m, phase13, matryoshka, multidataset]
+  wandb_group: colbert_phase13
+  results_dir: experiments/results
+  save_model: true

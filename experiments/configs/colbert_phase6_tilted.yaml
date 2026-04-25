@@ -1,0 +1,43 @@
+name: colbert_mxbai_phase6_tilted
+description: >
+  Phase 6 — tilted ERM probe. Does upweighting hard samples reduce tail
+  reconstruction error vs the TopK baseline at the winning config?
+
+data:
+  datasets:
+    - /data/embeddings/fineweb-edu-sample-10BT-chunked-500-mxbai-edge-32m/train
+  d_in: 64
+  file_type: npy
+  raw_dtype: float16
+  shuffle: true
+  n_samples: 100000000
+
+sae:
+  sae_type: topk
+  expansion_factor: 2
+  k: 16
+  k_anneal: true
+
+train:
+  batch_size: 8192
+  grad_acc_steps: 1
+  lr_warmup_steps: 2000
+  use_amp: true
+  save_every: 5000
+  auxk_alpha: 0.03125
+  dead_feature_threshold: 50000
+  num_workers: 2
+  tilted_erm_tilt: 0.002    # gentle upweighting of hard samples
+
+logging:
+  use_wandb: true
+  wandb_project: latent-sae
+  wandb_run_name: colbert_mxbai_phase6_tilted
+  wandb_tags:
+    - colbert
+    - mxbai-32m
+    - phase6
+    - tilted_erm
+  wandb_group: colbert_phase6
+  results_dir: experiments/results
+  save_model: true

@@ -1,0 +1,6 @@
+# Phase 4 — k × expansion at small expansion (TopK).
+# 3 * 3 = 9 runs ≈ 35 min on the 5090.
+# Expansion=2 means 128 latents — half of d_in*2. See if FVU still holds.
+sweep:
+  sae.k: [8, 16, 24]
+  sae.expansion_factor: [2, 4, 8]

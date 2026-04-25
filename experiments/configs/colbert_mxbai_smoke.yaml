@@ -1,0 +1,34 @@
+name: colbert_mxbai_smoke
+description: >
+  Smoke test — tiny ColBERT SAE run to verify fp16 memmap loader and that
+  the TopK trainer converges on 64-d per-token vectors. Not for production.
+
+data:
+  datasets:
+    - /data/embeddings/fineweb-edu-sample-10BT-chunked-500-mxbai-edge-32m/train
+  d_in: 64
+  file_type: npy
+  raw_dtype: float16
+  shuffle: true
+  n_samples: 500000
+
+sae:
+  sae_type: topk
+  expansion_factor: 8
+  k: 64
+  k_anneal: false
+
+train:
+  batch_size: 4096
+  grad_acc_steps: 1
+  lr_warmup_steps: 100
+  use_amp: true
+  save_every: 999999
+  auxk_alpha: 0.03125
+  dead_feature_threshold: 50000
+  num_workers: 0         # safest for a 47 GB lazy-memmap shard — scale up after verifying
+
+logging:
+  use_wandb: false
+  results_dir: experiments/results
+  save_model: false

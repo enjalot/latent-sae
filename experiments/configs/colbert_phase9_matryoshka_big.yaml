@@ -1,0 +1,39 @@
+name: colbert_mxbai_phase9_matryoshka_big
+description: >
+  Matryoshka with larger top level (8192 latents) and deeper nesting.
+
+data:
+  datasets:
+    - /data/embeddings/fineweb-edu-sample-10BT-chunked-500-mxbai-edge-32m/train
+  d_in: 64
+  file_type: npy
+  raw_dtype: float16
+  shuffle: true
+  n_samples: 100000000
+
+sae:
+  sae_type: matryoshka
+  expansion_factor: 128
+  k: 32
+  k_anneal: false
+  matryoshka_sizes: "512,2048,8192"
+  matryoshka_ks: "8,16,32"
+
+train:
+  batch_size: 8192
+  grad_acc_steps: 1
+  lr_warmup_steps: 2000
+  use_amp: true
+  save_every: 5000
+  auxk_alpha: 0.0
+  dead_feature_threshold: 50000
+  num_workers: 2
+
+logging:
+  use_wandb: true
+  wandb_project: latent-sae
+  wandb_run_name: colbert_mxbai_phase9_matryoshka_big
+  wandb_tags: [colbert, mxbai-32m, phase9, matryoshka, big]
+  wandb_group: colbert_phase9
+  results_dir: experiments/results
+  save_model: true

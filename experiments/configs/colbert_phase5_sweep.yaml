@@ -1,0 +1,4 @@
+# Phase 5 — fine k sweep at exp=2 (TopK). Pin the sparsity optimum.
+# 5 runs ≈ 20 min on the 5090.
+sweep:
+  sae.k: [4, 6, 12, 20, 32]
