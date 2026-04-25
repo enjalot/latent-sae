@@ -1,0 +1,49 @@
+name: colbert_mxbai_phase17d_otf_64K_saelens_2B
+description: >
+  Phase 17d-a — architecture scale-up of the 17b winner. 64K-max
+  matryoshka (expansion=1024, 5 levels), SAELens Apr-2024 recipe,
+  2B OTF tokens, on-device data pipeline (~11% faster end-to-end
+  per today's profile). Tests whether the 17b recipe + 2B combination
+  compounds further at twice the architecture.
+
+  Direct reference: Phase 13 disk-backed at 65K / 200M → 1493 validated.
+  17b at 32K / 2B got 2034 validated. Question: does 64K / 2B OTF
+  push validated past 3000?
+
+data:
+  parquet_dirs:
+    - /data/chunks/fineweb-edu-sample-10BT-chunked-500/train
+    - /data/chunks/RedPajama-Data-V2-sample-10B-chunked-500/train
+    - /data/chunks/pile-uncopyrighted-chunked-500/train
+  d_in: 64
+  model_id: mixedbread-ai/mxbai-edge-colbert-v0-32m
+  chunks_per_encode: 64
+  queue_size: 4
+  seed: 42
+  n_samples: 2000000000
+  shuffle_buffer_size: 4000000
+  on_device: true
+
+sae:
+  sae_type: matryoshka
+  expansion_factor: 1024
+  k: 32
+  k_anneal: false
+  matryoshka_sizes: "512,2048,8192,32768,65536"
+  matryoshka_ks: "8,16,32,32,32"
+  decoder_init_norm: 0.1
+  normalize_decoder: true
+
+train:
+  batch_size: 8192
+  lr_warmup_steps: 5000
+  use_amp: true
+  save_every: 100000
+  auxk_alpha: 0.0
+  use_b_dec_init: false
+  use_decoder_norm: false
+  use_grad_clip: true
+  use_remove_parallel_grad: false
+
+logging:
+  results_dir: experiments/results

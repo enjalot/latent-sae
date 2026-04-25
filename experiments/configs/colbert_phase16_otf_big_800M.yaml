@@ -1,0 +1,37 @@
+name: colbert_mxbai_phase16_otf_big_800M
+description: >
+  Phase 16 Thread 4 — On-the-fly ColBERT → SAE. Matryoshka big 8192
+  latents, multi-domain (even 33/33/33), 800M tokens.
+  Direct comparison to Phase 15's pre-embedded 800M run: same
+  architecture, same sample count, but OTF sees many more distinct
+  chunks because it doesn't replay the 1.1B-token pre-embedded pool.
+
+data:
+  parquet_dirs:
+    - /data/chunks/fineweb-edu-sample-10BT-chunked-500/train
+    - /data/chunks/RedPajama-Data-V2-sample-10B-chunked-500/train
+    - /data/chunks/pile-uncopyrighted-chunked-500/train
+  d_in: 64
+  model_id: mixedbread-ai/mxbai-edge-colbert-v0-32m
+  chunks_per_encode: 64
+  queue_size: 4
+  seed: 42
+  n_samples: 800000000
+
+sae:
+  sae_type: matryoshka
+  expansion_factor: 128
+  k: 32
+  k_anneal: false
+  matryoshka_sizes: "512,2048,8192"
+  matryoshka_ks: "8,16,32"
+
+train:
+  batch_size: 8192
+  lr_warmup_steps: 2000
+  use_amp: true
+  save_every: 20000
+  auxk_alpha: 0.0
+
+logging:
+  results_dir: experiments/results

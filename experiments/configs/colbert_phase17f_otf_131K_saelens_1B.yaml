@@ -1,0 +1,50 @@
+name: colbert_mxbai_phase17f_otf_131K_saelens_1B
+description: >
+  Phase 17f — the final scale-up of the winning OTF+SAELens recipe.
+  131K-max matryoshka (7-level, matching Phase 14 disk-backed
+  architecture exactly), SAELens Apr-2024 recipe, 1B OTF tokens,
+  on-device pipeline.
+
+  The first architecture-matched A/B vs Phase 14 (131K disk 200M → 2845
+  validated). 1B tokens is 5× Phase 14's training budget at matched arch.
+  Based on 17b→17d scaling (32K → 64K doubled validated from 2034 to
+  3407), projection is ~4000-5000 validated at 131K. Wall time ~2.7h on
+  the 17M-param SAE at ~105K samples/s measured.
+
+data:
+  parquet_dirs:
+    - /data/chunks/fineweb-edu-sample-10BT-chunked-500/train
+    - /data/chunks/RedPajama-Data-V2-sample-10B-chunked-500/train
+    - /data/chunks/pile-uncopyrighted-chunked-500/train
+  d_in: 64
+  model_id: mixedbread-ai/mxbai-edge-colbert-v0-32m
+  chunks_per_encode: 64
+  queue_size: 4
+  seed: 42
+  n_samples: 1000000000
+  shuffle_buffer_size: 4000000
+  on_device: true
+
+sae:
+  sae_type: matryoshka
+  expansion_factor: 2048
+  k: 32
+  k_anneal: false
+  matryoshka_sizes: "512,2048,8192,16384,32768,65536,131072"
+  matryoshka_ks: "8,16,32,32,32,32,32"
+  decoder_init_norm: 0.1
+  normalize_decoder: true
+
+train:
+  batch_size: 8192
+  lr_warmup_steps: 5000
+  use_amp: true
+  save_every: 100000
+  auxk_alpha: 0.0
+  use_b_dec_init: false
+  use_decoder_norm: false
+  use_grad_clip: true
+  use_remove_parallel_grad: false
+
+logging:
+  results_dir: experiments/results

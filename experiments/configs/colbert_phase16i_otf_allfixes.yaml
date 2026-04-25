@@ -1,0 +1,37 @@
+name: colbert_mxbai_phase16i_otf_allfixes
+description: >
+  Phase 16i — OTF with all trainer fixes (geometric median init,
+  per-step decoder norm, correct LR formula, Adam not AdamW) PLUS
+  4M-token consumer shuffle buffer. Strictly dominates 16h once we
+  validate the LR/Adam change helps.
+
+data:
+  parquet_dirs:
+    - /data/chunks/fineweb-edu-sample-10BT-chunked-500/train
+    - /data/chunks/RedPajama-Data-V2-sample-10B-chunked-500/train
+    - /data/chunks/pile-uncopyrighted-chunked-500/train
+  d_in: 64
+  model_id: mixedbread-ai/mxbai-edge-colbert-v0-32m
+  chunks_per_encode: 64
+  queue_size: 4
+  seed: 42
+  n_samples: 800000000
+  shuffle_buffer_size: 4000000
+
+sae:
+  sae_type: matryoshka
+  expansion_factor: 128
+  k: 32
+  k_anneal: false
+  matryoshka_sizes: "512,2048,8192"
+  matryoshka_ks: "8,16,32"
+
+train:
+  batch_size: 8192
+  lr_warmup_steps: 2000
+  use_amp: true
+  save_every: 20000
+  auxk_alpha: 0.0
+
+logging:
+  results_dir: experiments/results

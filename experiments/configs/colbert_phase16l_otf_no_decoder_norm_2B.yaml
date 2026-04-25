@@ -1,0 +1,45 @@
+name: colbert_mxbai_phase16l_otf_no_decoder_norm_2B
+description: >
+  Phase 16l — scale-up of the "high-rigor-accuracy" path. 2B samples,
+  8K matryoshka, but disables per-step decoder_norm (and its paired
+  remove_parallel_grad). Keeps geo_median init + grad_clip. No shuffle
+  buffer (like 16c). Tests whether 16c's higher rigor accuracy (0.64
+  vs 16h's 0.48) comes from letting decoder rows drift to different
+  magnitudes — which concentrates features into specific directions
+  instead of forcing uniform capacity.
+
+data:
+  parquet_dirs:
+    - /data/chunks/fineweb-edu-sample-10BT-chunked-500/train
+    - /data/chunks/RedPajama-Data-V2-sample-10B-chunked-500/train
+    - /data/chunks/pile-uncopyrighted-chunked-500/train
+  d_in: 64
+  model_id: mixedbread-ai/mxbai-edge-colbert-v0-32m
+  chunks_per_encode: 64
+  queue_size: 4
+  seed: 42
+  n_samples: 2000000000
+  # No shuffle_buffer_size — FIFO consumer (like 16c)
+
+sae:
+  sae_type: matryoshka
+  expansion_factor: 128
+  k: 32
+  k_anneal: false
+  matryoshka_sizes: "512,2048,8192"
+  matryoshka_ks: "8,16,32"
+
+train:
+  batch_size: 8192
+  lr_warmup_steps: 5000
+  use_amp: true
+  save_every: 100000
+  auxk_alpha: 0.0
+  # Feature flags — disable decoder norm to let features specialize
+  use_b_dec_init: true
+  use_decoder_norm: false
+  use_grad_clip: true
+  use_remove_parallel_grad: false
+
+logging:
+  results_dir: experiments/results

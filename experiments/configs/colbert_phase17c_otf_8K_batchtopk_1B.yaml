@@ -1,0 +1,43 @@
+name: colbert_mxbai_phase17c_otf_8K_batchtopk_1B
+description: >
+  Phase 17c — BatchTopK sanity-check run. Same 8K matryoshka as 16k,
+  same recipe, same 4M shuffle buffer, but switches the per-level
+  selector from TopK to BatchTopK. With B=8192 and k=32 per level,
+  BatchTopK picks top (8192 * 32) = 262K pre-activations across the
+  batch, allowing harder samples to use more features and easier ones
+  fewer.
+
+  1B tokens (not 2B) to cut the run to ~45 min — this is a sanity
+  test for the implementation; the full 32K BatchTopK run is 17d.
+
+data:
+  parquet_dirs:
+    - /data/chunks/fineweb-edu-sample-10BT-chunked-500/train
+    - /data/chunks/RedPajama-Data-V2-sample-10B-chunked-500/train
+    - /data/chunks/pile-uncopyrighted-chunked-500/train
+  d_in: 64
+  model_id: mixedbread-ai/mxbai-edge-colbert-v0-32m
+  chunks_per_encode: 64
+  queue_size: 4
+  seed: 42
+  n_samples: 1000000000
+  shuffle_buffer_size: 4000000
+
+sae:
+  sae_type: matryoshka
+  expansion_factor: 128
+  k: 32
+  k_anneal: false
+  matryoshka_sizes: "512,2048,8192"
+  matryoshka_ks: "8,16,32"
+  matryoshka_use_batchtopk: true
+
+train:
+  batch_size: 8192
+  lr_warmup_steps: 2000
+  use_amp: true
+  save_every: 50000
+  auxk_alpha: 0.0
+
+logging:
+  results_dir: experiments/results

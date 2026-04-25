@@ -1,0 +1,39 @@
+name: colbert_mxbai_phase16e_otf_replay2
+description: >
+  Phase 16e (contingent) — If 16d's shuffle buffer alone doesn't close
+  the OTF quality gap, this adds explicit 2× replay: same 4M shuffle
+  buffer but each pulled encode yields 2 SAE batches instead of 1, so
+  each token is seen ~2× on average during its buffer residency. Unique
+  token budget drops to ~400M but SAE still does 97K gradient steps.
+
+data:
+  parquet_dirs:
+    - /data/chunks/fineweb-edu-sample-10BT-chunked-500/train
+    - /data/chunks/RedPajama-Data-V2-sample-10B-chunked-500/train
+    - /data/chunks/pile-uncopyrighted-chunked-500/train
+  d_in: 64
+  model_id: mixedbread-ai/mxbai-edge-colbert-v0-32m
+  chunks_per_encode: 64
+  queue_size: 4
+  seed: 42
+  n_samples: 800000000
+  shuffle_buffer_size: 4000000
+  replay_factor: 2.0
+
+sae:
+  sae_type: matryoshka
+  expansion_factor: 128
+  k: 32
+  k_anneal: false
+  matryoshka_sizes: "512,2048,8192"
+  matryoshka_ks: "8,16,32"
+
+train:
+  batch_size: 8192
+  lr_warmup_steps: 2000
+  use_amp: true
+  save_every: 20000
+  auxk_alpha: 0.0
+
+logging:
+  results_dir: experiments/results

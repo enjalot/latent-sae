@@ -1,0 +1,37 @@
+name: colbert_mxbai_phase16_otf_recipe_50_25_25
+description: >
+  Phase 16 Thread 4b — Alt recipe 50% fineweb / 25% RedPajama / 25% pile.
+  Tests whether multi-domain's missing live features are due to diversity
+  dilution or under-training at the 33/33/33 mix. If raising fineweb's
+  share to 50% recovers the live-feature count, diversity was the tax.
+
+data:
+  parquet_dirs:
+    - /data/chunks/fineweb-edu-sample-10BT-chunked-500/train
+    - /data/chunks/RedPajama-Data-V2-sample-10B-chunked-500/train
+    - /data/chunks/pile-uncopyrighted-chunked-500/train
+  d_in: 64
+  model_id: mixedbread-ai/mxbai-edge-colbert-v0-32m
+  chunks_per_encode: 64
+  queue_size: 4
+  seed: 42
+  n_samples: 400000000
+  domain_weights: [0.5, 0.25, 0.25]
+
+sae:
+  sae_type: matryoshka
+  expansion_factor: 128
+  k: 32
+  k_anneal: false
+  matryoshka_sizes: "512,2048,8192"
+  matryoshka_ks: "8,16,32"
+
+train:
+  batch_size: 8192
+  lr_warmup_steps: 2000
+  use_amp: true
+  save_every: 20000
+  auxk_alpha: 0.0
+
+logging:
+  results_dir: experiments/results

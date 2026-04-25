@@ -1,0 +1,48 @@
+name: colbert_mxbai_phase17h_otf_32K_saelens_ks_ablation_2B
+description: >
+  Phase 17h — 17b's recipe, matryoshka_ks ablation. 17b used
+  "8,16,32,32,32" — the three largest levels all pick k=32 features
+  per sample. Hypothesis: the big levels aren't adding specificity,
+  they're reaching deeper into the same shortlist. Reducing ks on
+  mid-levels to "8,16,16,24,32" forces per-level feature
+  specialization and should either improve retrieval or increase
+  coherent-feature count — or reveal a bottleneck we didn't know
+  about. Same 2B OTF tokens, same SAELens recipe as 17b.
+
+data:
+  parquet_dirs:
+    - /data/chunks/fineweb-edu-sample-10BT-chunked-500/train
+    - /data/chunks/RedPajama-Data-V2-sample-10B-chunked-500/train
+    - /data/chunks/pile-uncopyrighted-chunked-500/train
+  d_in: 64
+  model_id: mixedbread-ai/mxbai-edge-colbert-v0-32m
+  chunks_per_encode: 64
+  queue_size: 4
+  seed: 42
+  n_samples: 2000000000
+  shuffle_buffer_size: 4000000
+  on_device: true
+
+sae:
+  sae_type: matryoshka
+  expansion_factor: 512
+  k: 32
+  k_anneal: false
+  matryoshka_sizes: "512,2048,8192,16384,32768"
+  matryoshka_ks: "8,16,16,24,32"
+  decoder_init_norm: 0.1
+  normalize_decoder: true
+
+train:
+  batch_size: 8192
+  lr_warmup_steps: 5000
+  use_amp: true
+  save_every: 100000
+  auxk_alpha: 0.0
+  use_b_dec_init: false
+  use_decoder_norm: false
+  use_grad_clip: true
+  use_remove_parallel_grad: false
+
+logging:
+  results_dir: experiments/results
