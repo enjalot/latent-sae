@@ -1,0 +1,55 @@
+name: colbert_mxbai_phase17r_otf_131K_oldrecipe_replay4_2B
+description: >
+  Phase 17r — width scaling at the right recipe, point 3 of 3.
+  131K matryoshka with old recipe + replay 4.0. Tests whether width
+  keeps adding quality past 64K.
+
+  Reference points (old recipe + replay 4):
+  - 17n (32K): 10,281 live, rigor COH+THM 0.644, COH 0.750, embedsim COH 0.781
+  - 17q (64K): 13,014 live, rigor COH+THM 0.671, COH 0.815, embedsim COH 0.822
+  Reference points at 131K (SAELens recipe — wrong recipe):
+  - 17f (replay 1, 1B tokens): 104,667 live, rigor 0.553
+  - 17g (replay 1, 2B tokens): 117,149 live, rigor 0.554, BAD retrieval 0.673
+
+  Predicted: live ~13-15K (live appears to saturate at 13K with current
+  data budget), rigor COH+THM 0.68-0.72, COH only 0.85-0.90. If
+  live count breaks past 13K it would mean the dictionary capacity
+  matters; if rigor lifts further it would mean width still helps
+  feature quality at this token budget.
+
+  Either outcome locks in a clear scaling story. Same eval suite as
+  17q (extract, retrieval, label, rigor, topic-cohesion, embedsim).
+
+data:
+  parquet_dirs:
+    - /data/chunks/fineweb-edu-sample-10BT-chunked-500/train
+    - /data/chunks/RedPajama-Data-V2-sample-10B-chunked-500/train
+    - /data/chunks/pile-uncopyrighted-chunked-500/train
+  d_in: 64
+  model_id: mixedbread-ai/mxbai-edge-colbert-v0-32m
+  chunks_per_encode: 64
+  queue_size: 4
+  seed: 42
+  n_samples: 2000000000
+  shuffle_buffer_size: 4000000
+  on_device: true
+  replay_factor: 4.0
+
+sae:
+  sae_type: matryoshka
+  expansion_factor: 2048
+  k: 32
+  k_anneal: false
+  matryoshka_sizes: "512,2048,8192,16384,32768,65536,131072"
+  matryoshka_ks: "8,16,32,32,32,32,32"
+
+train:
+  batch_size: 8192
+  lr_warmup_steps: 5000
+  use_amp: true
+  save_every: 100000
+  auxk_alpha: 0.0
+  use_grad_clip: true
+
+logging:
+  results_dir: experiments/results

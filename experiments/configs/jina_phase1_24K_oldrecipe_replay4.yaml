@@ -1,0 +1,57 @@
+name: jina_v5_nano_phase1_24K_oldrecipe_replay4
+description: >
+  First pooled-embedding SAE pilot on jina-v5-nano (768-dim).
+
+  Mirrors the proven ColBERT 17r recipe (matryoshka, old recipe,
+  replay 4) at the smaller width 24K appropriate for ~9M chunks of
+  English data:
+    - 17r reference (ColBERT 64-dim, 131K, 2B tokens, replay 4):
+      live ~7.8K (35%), rigor COH+THM 0.65, embedsim COH ~0.78
+    - this run (jina v5 nano 768-dim, 24K, ~36M samples, replay 4):
+      no priors yet — pooled embeddings live in a much higher-dim,
+      less anisotropic space than ColBERT 64-dim, so the rule-of-thumb
+      "live count caps at ~13K" likely doesn't transfer.
+
+  Goal: prove out the pipeline (train -> extract -> label -> evals).
+  Architecture/parameter sweeps come after Stage A/B/C.
+
+data:
+  data_dirs:
+    - /data/embeddings/fineweb-edu-sample-10BT-chunked-500-jina-v5-nano/train
+    - /data/embeddings/RedPajama-Data-V2-sample-10B-chunked-500-jina-v5-nano/train
+    - /data/embeddings/pile-uncopyrighted-chunked-500-jina-v5-nano/train
+  d_in: 768
+  file_type: npy
+  cache_size: 4
+  replay_factor: 4.0
+  seed: 42
+
+sae:
+  sae_type: matryoshka
+  expansion_factor: 32        # 768 * 32 = 24576
+  k: 32
+  k_anneal: false
+  matryoshka_sizes: "1024,4096,16384,24576"
+  matryoshka_ks: "8,16,32,32"
+
+train:
+  batch_size: 1024
+  lr_warmup_steps: 2000
+  use_amp: true
+  save_every: 10000
+  auxk_alpha: 0.0
+  # num_workers=0 forces dataset reads on the main thread. Workers
+  # would each build their own fp32 LRU cache of materialized shards;
+  # at our 215-242 MB per-shard size (just under the 256 MiB lazy
+  # threshold) and 18 "small" shards across 3 corpora, the previous
+  # num_workers=4 setting OOM'd at 31 GB anon-rss per worker (fix
+  # for the 2026-05-03 10:20 UTC kill).
+  num_workers: 0
+  use_grad_clip: true
+  # old recipe: all four niceties on (defaults)
+  use_b_dec_init: true
+  use_decoder_norm: true
+  use_remove_parallel_grad: true
+
+logging:
+  results_dir: experiments/results

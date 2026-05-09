@@ -1,0 +1,53 @@
+name: colbert_mxbai_phase17q_otf_64K_oldrecipe_replay4_2B
+description: >
+  Phase 17q — width scaling at the right recipe. Old recipe + replay
+  4.0 at 64K. Tests whether old recipe lets us scale architecture
+  cleanly, the question 17d (SAELens at 64K) didn't answer because
+  recipe was confounded.
+
+  Reference points at 64K:
+  - 17d (SAELens, replay 1): 63,446 live, rigor 0.553, nDCG 0.7087
+  Reference points at 32K with old recipe:
+  - 17a (old, replay 1): 4,592 live, rigor 0.655
+  - 17n (old, replay 4): 10,281 live, rigor 0.644
+
+  Predicted: live 15-25K, rigor 0.6+, nDCG mid-0.6s. Validated count
+  potentially surpasses 17n.
+
+  This config uses replay 4.0 (confirmed sweet spot). If 17p shows
+  replay 8.0 dramatically better, the auto-launcher will swap in
+  17q_replay8 instead.
+
+data:
+  parquet_dirs:
+    - /data/chunks/fineweb-edu-sample-10BT-chunked-500/train
+    - /data/chunks/RedPajama-Data-V2-sample-10B-chunked-500/train
+    - /data/chunks/pile-uncopyrighted-chunked-500/train
+  d_in: 64
+  model_id: mixedbread-ai/mxbai-edge-colbert-v0-32m
+  chunks_per_encode: 64
+  queue_size: 4
+  seed: 42
+  n_samples: 2000000000
+  shuffle_buffer_size: 4000000
+  on_device: true
+  replay_factor: 4.0
+
+sae:
+  sae_type: matryoshka
+  expansion_factor: 1024
+  k: 32
+  k_anneal: false
+  matryoshka_sizes: "512,2048,8192,16384,32768,65536"
+  matryoshka_ks: "8,16,32,32,32,32"
+
+train:
+  batch_size: 8192
+  lr_warmup_steps: 5000
+  use_amp: true
+  save_every: 100000
+  auxk_alpha: 0.0
+  use_grad_clip: true
+
+logging:
+  results_dir: experiments/results

@@ -1,0 +1,57 @@
+name: colbert_mxbai_phase17n_otf_32K_oldrecipe_replay4_2B
+description: >
+  Phase 17n — does old recipe compound with replay? Combines 17a's
+  recipe (Anthropic Apr-2023: geometric-median b_dec init, per-step
+  set_decoder_norm_to_unit_norm, remove_gradient_parallel_to_decoder,
+  unit-norm decoder init) with 17m's replay_factor=4.0. Holds
+  everything else equal to 17b/17m at 32K, 2B tokens.
+
+  Hypothesis: 17a alone got rigor 0.655 with 4,592 live features
+  (better per-feature interpretability than any SAELens-recipe run).
+  17m alone (replay 4.0 on SAELens) got 0.554 rigor with 31,878 live.
+  If recipe and replay compound, this run should land at rigor >0.70
+  with intermediate live count. If neither factor moves much, the
+  remaining OTF-vs-disk-backed gap is elsewhere (shuffle breadth,
+  ColBERT input normalization, or measurement methodology).
+
+data:
+  parquet_dirs:
+    - /data/chunks/fineweb-edu-sample-10BT-chunked-500/train
+    - /data/chunks/RedPajama-Data-V2-sample-10B-chunked-500/train
+    - /data/chunks/pile-uncopyrighted-chunked-500/train
+  d_in: 64
+  model_id: mixedbread-ai/mxbai-edge-colbert-v0-32m
+  chunks_per_encode: 64
+  queue_size: 4
+  seed: 42
+  n_samples: 2000000000
+  shuffle_buffer_size: 4000000
+  on_device: true
+  replay_factor: 4.0
+
+sae:
+  sae_type: matryoshka
+  expansion_factor: 512
+  k: 32
+  k_anneal: false
+  matryoshka_sizes: "512,2048,8192,16384,32768"
+  matryoshka_ks: "8,16,32,32,32"
+  # OLD RECIPE: omit decoder_init_norm (default 0.0 = unit-norm init),
+  # let normalize_decoder default to true. Train-section flags below
+  # also use the old-recipe defaults (b_dec init = geometric median,
+  # per-step decoder norm, remove parallel gradient).
+
+train:
+  batch_size: 8192
+  lr_warmup_steps: 5000
+  use_amp: true
+  save_every: 100000
+  auxk_alpha: 0.0
+  # old recipe — let these default to True:
+  # use_b_dec_init: true
+  # use_decoder_norm: true
+  # use_remove_parallel_grad: true
+  use_grad_clip: true
+
+logging:
+  results_dir: experiments/results

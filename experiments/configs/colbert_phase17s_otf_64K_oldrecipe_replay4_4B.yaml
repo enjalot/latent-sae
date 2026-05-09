@@ -1,0 +1,48 @@
+name: colbert_mxbai_phase17s_otf_64K_oldrecipe_replay4_4B
+description: >
+  Phase 17s (Case B) — token scaling at the proven sweet-spot arch.
+  Auto-launched if 17r plateaus or regresses (COH rigor < 0.83).
+  Doubles training tokens to 4B at 64K with old recipe + replay 4.
+  Tests the same hypothesis as Case A (is 13K live ceiling
+  data-bound?) but at 17q's known-good architecture.
+
+  Reference: 17q at 64K + 2B tokens hit 13,014 live, COH rigor 0.815.
+  Prediction: live breaks past 13K with 4B tokens → data is the
+  next scaling lever. Live stays at 13K → genuine 64-dim ColBERT
+  space ceiling, pivot needed.
+
+  ~4.5h wall time at 64K throughput (~250K samples/s).
+
+data:
+  parquet_dirs:
+    - /data/chunks/fineweb-edu-sample-10BT-chunked-500/train
+    - /data/chunks/RedPajama-Data-V2-sample-10B-chunked-500/train
+    - /data/chunks/pile-uncopyrighted-chunked-500/train
+  d_in: 64
+  model_id: mixedbread-ai/mxbai-edge-colbert-v0-32m
+  chunks_per_encode: 64
+  queue_size: 4
+  seed: 42
+  n_samples: 4000000000
+  shuffle_buffer_size: 4000000
+  on_device: true
+  replay_factor: 4.0
+
+sae:
+  sae_type: matryoshka
+  expansion_factor: 1024
+  k: 32
+  k_anneal: false
+  matryoshka_sizes: "512,2048,8192,16384,32768,65536"
+  matryoshka_ks: "8,16,32,32,32,32"
+
+train:
+  batch_size: 8192
+  lr_warmup_steps: 5000
+  use_amp: true
+  save_every: 100000
+  auxk_alpha: 0.0
+  use_grad_clip: true
+
+logging:
+  results_dir: experiments/results
