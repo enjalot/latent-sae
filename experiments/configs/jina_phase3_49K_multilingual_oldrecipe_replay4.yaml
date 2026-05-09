@@ -1,0 +1,60 @@
+name: jina_v5_nano_phase3_49K_multilingual_oldrecipe_replay4
+description: >
+  Stage E2: width-scale to 49K matryoshka on the same 49M-chunk
+  multilingual data. Stage D 24K hit 13,063 live / 53.2% — not
+  saturated. This run answers: at fixed data, does live count keep
+  climbing past 24K? Top matryoshka level grows 24576 -> 49152.
+
+data:
+  data_dirs:
+    - /data/embeddings/fineweb-edu-sample-10BT-chunked-500-jina-v5-nano/train
+    - /data/embeddings/RedPajama-Data-V2-sample-10B-chunked-500-jina-v5-nano/train
+    - /data/embeddings/pile-uncopyrighted-chunked-500-jina-v5-nano/train
+    - /data/embeddings/fineweb2-arb_Arab-chunked-500-jina-v5-nano/train
+    - /data/embeddings/fineweb2-ces_Latn-chunked-500-jina-v5-nano/train
+    - /data/embeddings/fineweb2-cmn_Hani-chunked-500-jina-v5-nano/train
+    - /data/embeddings/fineweb2-deu_Latn-chunked-500-jina-v5-nano/train
+    - /data/embeddings/fineweb2-ell_Grek-chunked-500-jina-v5-nano/train
+    - /data/embeddings/fineweb2-fra_Latn-chunked-500-jina-v5-nano/train
+    - /data/embeddings/fineweb2-hin_Deva-chunked-500-jina-v5-nano/train
+    - /data/embeddings/fineweb2-ind_Latn-chunked-500-jina-v5-nano/train
+    - /data/embeddings/fineweb2-ita_Latn-chunked-500-jina-v5-nano/train
+    - /data/embeddings/fineweb2-jpn_Jpan-chunked-500-jina-v5-nano/train
+    - /data/embeddings/fineweb2-kor_Hang-chunked-500-jina-v5-nano/train
+    - /data/embeddings/fineweb2-nld_Latn-chunked-500-jina-v5-nano/train
+    - /data/embeddings/fineweb2-pol_Latn-chunked-500-jina-v5-nano/train
+    - /data/embeddings/fineweb2-por_Latn-chunked-500-jina-v5-nano/train
+    - /data/embeddings/fineweb2-rus_Cyrl-chunked-500-jina-v5-nano/train
+    - /data/embeddings/fineweb2-spa_Latn-chunked-500-jina-v5-nano/train
+    - /data/embeddings/fineweb2-swe_Latn-chunked-500-jina-v5-nano/train
+    - /data/embeddings/fineweb2-tha_Thai-chunked-500-jina-v5-nano/train
+    - /data/embeddings/fineweb2-tur_Latn-chunked-500-jina-v5-nano/train
+    - /data/embeddings/fineweb2-vie_Latn-chunked-500-jina-v5-nano/train
+  d_in: 768
+  file_type: npy
+  cache_size: 4
+  replay_factor: 4.0
+  seed: 42
+
+sae:
+  sae_type: matryoshka
+  expansion_factor: 64        # 768 * 64 = 49152
+  k: 32
+  k_anneal: false
+  matryoshka_sizes: "1024,4096,16384,49152"
+  matryoshka_ks: "8,16,32,32"
+
+train:
+  batch_size: 1024
+  lr_warmup_steps: 2000
+  use_amp: true
+  save_every: 20000
+  auxk_alpha: 0.0
+  num_workers: 0
+  use_grad_clip: true
+  use_b_dec_init: true
+  use_decoder_norm: true
+  use_remove_parallel_grad: true
+
+logging:
+  results_dir: experiments/results

@@ -103,12 +103,20 @@ def load_scifact():
 
 def embed_texts(texts, model_name="sentence-transformers/all-MiniLM-L6-v2", batch_size=256):
     from sentence_transformers import SentenceTransformer
+    import gc
     model = SentenceTransformer(model_name, trust_remote_code=True)
-    if isinstance(texts, tuple):
-        emb1 = model.encode(texts[0], batch_size=batch_size, show_progress_bar=True, normalize_embeddings=True)
-        emb2 = model.encode(texts[1], batch_size=batch_size, show_progress_bar=True, normalize_embeddings=True)
-        return emb1, emb2
-    return model.encode(list(texts), batch_size=batch_size, show_progress_bar=True, normalize_embeddings=True)
+    try:
+        if isinstance(texts, tuple):
+            emb1 = model.encode(texts[0], batch_size=batch_size, show_progress_bar=True, normalize_embeddings=True)
+            emb2 = model.encode(texts[1], batch_size=batch_size, show_progress_bar=True, normalize_embeddings=True)
+            return emb1, emb2
+        return model.encode(list(texts), batch_size=batch_size, show_progress_bar=True, normalize_embeddings=True)
+    finally:
+        # Release embedder GPU memory before the next probe loads its own
+        del model
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
 
 def sae_encode(sae, embeddings, batch_size=512, device="cpu"):
@@ -370,8 +378,19 @@ def evaluate_sae(sae, model_name, device="cpu", max_samples=5000, suite="standar
             corpus_ids = list(corpus.keys())
 
             print(f"Embedding {len(queries)} queries and {len(corpus)} corpus docs...")
-            query_embs = embed_texts(list(queries.values()), model_name)
-            corpus_embs = embed_texts(list(corpus.values()), model_name)
+            # Move SAE off GPU temporarily; the embedder needs the headroom
+            # for self-attention activations on long-context corpus docs.
+            import gc
+            sae_dev_was = next(sae.parameters()).device
+            sae.cpu()
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            # Smaller batch — SciFact corpus docs are long (full abstracts),
+            # so default 256 saturates 5090 attention scratch.
+            query_embs = embed_texts(list(queries.values()), model_name, batch_size=64)
+            corpus_embs = embed_texts(list(corpus.values()), model_name, batch_size=64)
+            sae.to(sae_dev_was)
 
             print("SAE encoding...")
             query_recon, query_sparse = sae_encode(sae, query_embs, device=device)

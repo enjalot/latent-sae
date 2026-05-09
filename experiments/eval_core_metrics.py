@@ -35,9 +35,13 @@ from latentsae.sae import Sae  # noqa: E402
 def load_eval_sample(data_dir: str, offset: int, n: int, d_in: int) -> torch.Tensor:
     """Read `n` rows starting at `offset` from the first .npy shard in data_dir."""
     d = Path(data_dir)
+    # Try data-*.npy convention first (English fineweb/redpajama/pile);
+    # fall back to any *.npy (multilingual shards: 000_00000.npy)
     shards = sorted(p for p in d.glob("data-*.npy"))
     if not shards:
-        raise FileNotFoundError(f"no data-*.npy in {d}")
+        shards = sorted(p for p in d.glob("*.npy"))
+    if not shards:
+        raise FileNotFoundError(f"no .npy shards in {d}")
     arr = np.load(shards[0], mmap_mode="r")
     total = arr.shape[0]
     assert arr.shape[1] == d_in, f"d_in mismatch: {arr.shape[1]} vs {d_in}"
@@ -146,10 +150,21 @@ def main():
     for rd in run_dirs:
         # Find single checkpoint subdirectory. Accept with-or-without trailing dot.
         ckpt_dirs = [p for p in (rd / "checkpoints").glob("*") if p.is_dir() and (p / "cfg.json").exists()]
+        # Prefer the final post-training checkpoint (named e.g. sae_matryoshka_32_32.pooled),
+        # else the highest-step checkpoint. Filesystem glob order is undefined.
+        def _ckpt_rank(p):
+            name = p.name
+            if name.startswith("sae_step_"):
+                try:
+                    return (0, int(name.split("_")[-1]))
+                except ValueError:
+                    return (0, 0)
+            return (1, 0)  # non-step ckpts (final saves) sort after step ckpts
+        ckpt_dirs = sorted(ckpt_dirs, key=_ckpt_rank)
         if not ckpt_dirs:
             print(f"SKIP {rd.name}: no checkpoint with cfg.json")
             continue
-        ckpt = ckpt_dirs[0]
+        ckpt = ckpt_dirs[-1]  # last after rank-sort = final save or highest step
         out_path = rd / "metrics.json"
         if out_path.exists() and not args.overwrite:
             m = json.loads(out_path.read_text())
