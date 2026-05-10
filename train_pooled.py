@@ -16,7 +16,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import yaml
-from torch.utils.data import DataLoader, RandomSampler
+from torch.utils.data import DataLoader, RandomSampler, Sampler
 from tqdm import tqdm
 
 from latentsae.sae import Sae
@@ -36,6 +36,58 @@ from latentsae.utils.eleuther import geometric_median
 _dl._LARGE_SHARD_BYTES = 0
 
 
+class CorpusBalancedSampler(Sampler[int]):
+    """Replacement sampler that first samples a corpus, then a row in it.
+
+    `ShardedEmbeddingDataset` concatenates all shard directories. Plain
+    RandomSampler is row-proportional, so large corpora dominate. This sampler
+    keeps the same replacement/replay semantics while allowing equal or
+    configured probability per source directory without materializing a
+    per-row weight vector for tens of millions of rows.
+    """
+
+    def __init__(self, dataset: ShardedEmbeddingDataset, num_samples: int,
+                 seed: int = 42, corpus_weights: list[float] | None = None):
+        self.dataset = dataset
+        self.num_samples = int(num_samples)
+        self.seed = int(seed)
+
+        by_dir: dict[str, list[tuple[int, int]]] = {}
+        start = 0
+        for (dir_path, _), size in zip(dataset.shard_files, dataset.shard_sizes):
+            by_dir.setdefault(dir_path, []).append((start, start + int(size)))
+            start += int(size)
+        self.corpora = sorted(by_dir)
+        self.intervals = [by_dir[c] for c in self.corpora]
+        self.corpus_sizes = [sum(e - s for s, e in ivals) for ivals in self.intervals]
+        self.corpus_cumsums = [np.cumsum([e - s for s, e in ivals]) for ivals in self.intervals]
+
+        if corpus_weights is None:
+            probs = np.ones(len(self.corpora), dtype=np.float64)
+        else:
+            if len(corpus_weights) != len(self.corpora):
+                raise ValueError(
+                    f"corpus_weights length {len(corpus_weights)} must match "
+                    f"{len(self.corpora)} data_dirs")
+            probs = np.asarray(corpus_weights, dtype=np.float64)
+            if (probs < 0).any() or probs.sum() <= 0:
+                raise ValueError("corpus_weights must be non-negative and sum > 0")
+        self.probs = probs / probs.sum()
+
+    def __len__(self) -> int:
+        return self.num_samples
+
+    def __iter__(self):
+        rng = np.random.default_rng(self.seed)
+        for _ in range(self.num_samples):
+            c = int(rng.choice(len(self.corpora), p=self.probs))
+            local = int(rng.integers(0, self.corpus_sizes[c]))
+            shard_idx = int(np.searchsorted(self.corpus_cumsums[c], local, side="right"))
+            prev = int(self.corpus_cumsums[c][shard_idx - 1]) if shard_idx > 0 else 0
+            start, _ = self.intervals[c][shard_idx]
+            yield start + (local - prev)
+
+
 def train_pooled(cfg: dict):
     out_root = Path(cfg["logging"]["results_dir"])
     run_dir = out_root / f"{cfg['name']}_{time.strftime('%Y%m%d_%H%M%S')}"
@@ -52,9 +104,12 @@ def train_pooled(cfg: dict):
         expansion_factor=sae_cfg_dict["expansion_factor"],
         k=sae_cfg_dict["k"],
         k_anneal=sae_cfg_dict.get("k_anneal", False),
+        k_anneal_start=sae_cfg_dict.get("k_anneal_start", 0),
+        k_anneal_pct=sae_cfg_dict.get("k_anneal_pct", 0.3),
         matryoshka_sizes=sae_cfg_dict.get("matryoshka_sizes", ""),
         matryoshka_ks=sae_cfg_dict.get("matryoshka_ks", ""),
         matryoshka_use_batchtopk=sae_cfg_dict.get("matryoshka_use_batchtopk", False),
+        matryoshka_loss_weights=sae_cfg_dict.get("matryoshka_loss_weights", ""),
         decoder_init_norm=float(sae_cfg_dict.get("decoder_init_norm", 0.0)),
         normalize_decoder=sae_cfg_dict.get("normalize_decoder", True),
     )
@@ -81,8 +136,19 @@ def train_pooled(cfg: dict):
     print(f"data: {len(dataset):,} unique × {replay_factor} replay = {n_samples:,} samples "
           f"-> {n_batches:,} batches at bs={batch_size}")
 
-    sampler = RandomSampler(dataset, replacement=True, num_samples=n_samples,
-                            generator=torch.Generator().manual_seed(cfg["data"].get("seed", 42)))
+    seed = int(cfg["data"].get("seed", 42))
+    sampling_mode = cfg["data"].get("sampling", "proportional")
+    if sampling_mode == "balanced_corpus":
+        weights = cfg["data"].get("corpus_weights")
+        sampler = CorpusBalancedSampler(dataset, n_samples, seed=seed,
+                                        corpus_weights=weights)
+        print(f"sampling=balanced_corpus over {len(sampler.corpora)} corpora")
+    elif sampling_mode == "proportional":
+        sampler = RandomSampler(dataset, replacement=True, num_samples=n_samples,
+                                generator=torch.Generator().manual_seed(seed))
+        print("sampling=proportional")
+    else:
+        raise ValueError(f"unknown data.sampling={sampling_mode!r}")
     dl = DataLoader(
         dataset,
         batch_size=batch_size,
@@ -123,6 +189,13 @@ def train_pooled(cfg: dict):
     bias_initialized = not use_b_dec_init
     num_tokens_since_fired = torch.zeros(sae.num_latents, device=device, dtype=torch.long)
 
+    k_anneal = scfg.k_anneal and scfg.sae_type != SaeType.JUMPRELU
+    if k_anneal:
+        k_start = min(scfg.k_anneal_start or (4 * scfg.k), sae.num_latents)
+        k_end = scfg.k
+        k_anneal_steps = int(n_batches * scfg.k_anneal_pct)
+        print(f"k_anneal: {k_start} -> {k_end} over {k_anneal_steps} steps")
+
     t0 = time.monotonic()
     pbar = tqdm(enumerate(dl), total=n_batches, desc="pooled SAE")
     samples_seen = 0
@@ -141,12 +214,17 @@ def train_pooled(cfg: dict):
         if use_decoder_norm and scfg.normalize_decoder:
             sae.set_decoder_norm_to_unit_norm()
 
+        current_k = None
+        if k_anneal and step < k_anneal_steps:
+            frac = step / max(k_anneal_steps, 1)
+            current_k = int(k_start + (k_end - k_start) * frac)
+
         for g in opt.param_groups:
             g["lr"] = lr_at(step)
         opt.zero_grad(set_to_none=True)
         with torch.amp.autocast("cuda", enabled=cfg["train"].get("use_amp", True)):
             dead_mask = (num_tokens_since_fired > dead_feature_threshold) if auxk_alpha > 0 else None
-            out = sae(batch, dead_mask=dead_mask)
+            out = sae(batch, dead_mask=dead_mask, k_override=current_k)
             loss = out.fvu + auxk_alpha * out.auxk_loss
             if scfg.multi_topk:
                 loss = loss + out.multi_topk_fvu / 8
@@ -170,6 +248,7 @@ def train_pooled(cfg: dict):
             pbar.set_postfix({
                 "fvu": f"{out.fvu.item():.4f}",
                 "samp/s": f"{samples_seen/elapsed:.0f}",
+                **({"k": current_k} if current_k is not None else {}),
             })
         if step > 0 and (step % save_every == 0):
             sae.save_to_disk(ckpt_dir / f"sae_step_{step}")

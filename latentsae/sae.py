@@ -101,6 +101,12 @@ class Sae(nn.Module):
                     f"num_latents ({self.num_latents})")
             self._matryoshka_sizes = sizes
             self._matryoshka_ks = ks
+            weights = [float(s) for s in cfg.matryoshka_loss_weights.split(",") if s.strip()]
+            if weights and len(weights) != len(sizes):
+                raise ValueError(
+                    f"matryoshka_loss_weights must be empty or match matryoshka_sizes; "
+                    f"got weights={weights}, sizes={sizes}")
+            self._matryoshka_loss_weights = weights or [1.0] * len(sizes)
 
         self.W_dec = nn.Parameter(self.encoder.weight.data.clone() if hasattr(self, 'encoder') else self.W_gate.weight.data.clone()) if decoder else None
         if decoder and self.cfg.normalize_decoder:
@@ -355,7 +361,7 @@ class Sae(nn.Module):
 
         # Matryoshka has its own forward: multi-level reconstruction losses
         if self.cfg.sae_type == SaeType.MATRYOSHKA:
-            return self._forward_matryoshka(x, dead_mask)
+            return self._forward_matryoshka(x, dead_mask, k_override=k_override)
 
         # Encode
         if self.cfg.sae_type == SaeType.TOPK:
@@ -426,7 +432,8 @@ class Sae(nn.Module):
         )
 
     def _forward_matryoshka(self, x: Tensor,
-                            dead_mask: Optional[Tensor] = None) -> ForwardOutput:
+                            dead_mask: Optional[Tensor] = None,
+                            k_override: Optional[int] = None) -> ForwardOutput:
         """Matryoshka forward: compute reconstruction loss at each nesting level.
 
         At each level i with latent count n_i and sparsity k_i:
@@ -437,7 +444,9 @@ class Sae(nn.Module):
         so downstream eval treats this like a standard SAE.
         """
         sizes = self._matryoshka_sizes
-        ks = self._matryoshka_ks
+        ks = list(self._matryoshka_ks)
+        if k_override is not None:
+            ks[-1] = min(max(int(k_override), 1), sizes[-1])
         pre_acts = self.pre_acts(x)       # (B, N_total)
         total_variance = (x - x.mean(0)).pow(2).sum()
         use_btk = getattr(self.cfg, 'matryoshka_use_batchtopk', False)
@@ -490,8 +499,11 @@ class Sae(nn.Module):
         top_acts, top_indices = _select(pre_acts[:, :largest_n], largest_k) if use_btk else pre_acts.topk(largest_k, sorted=False)
         sae_out = self.decode(top_acts, top_indices)
 
-        # Use mean FVU across levels as the training loss surrogate
-        fvu = torch.stack(per_level_fvu).mean()
+        # Use weighted mean FVU across levels as the training loss surrogate.
+        weights = torch.as_tensor(self._matryoshka_loss_weights,
+                                  dtype=per_level_fvu[0].dtype,
+                                  device=per_level_fvu[0].device)
+        fvu = (torch.stack(per_level_fvu) * weights).sum() / weights.sum()
         multi_topk_fvu = sae_out.new_tensor(0.0)
         auxk_loss = sae_out.new_tensor(0.0)
         return ForwardOutput(sae_out, top_acts, top_indices, fvu, auxk_loss,

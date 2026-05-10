@@ -117,6 +117,11 @@ class SaeConfig(Serializable):
     harder samples get more features and easier ones fewer. At inference we
     fall back to a learned EMA threshold (shared across all levels)."""
 
+    matryoshka_loss_weights: str = ""
+    """Optional comma-separated weights for each matryoshka level's FVU loss.
+    Empty means equal weighting. Example: '0.5,0.5,1,2' emphasizes the
+    largest level while preserving nested-level pressure."""
+
     # -- SAELens Apr-2024 recipe support --
     decoder_init_norm: float = 0.0
     """If > 0, initialize each decoder row to this norm at init (instead of

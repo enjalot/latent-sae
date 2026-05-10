@@ -67,6 +67,24 @@ for lang in ML_LANGS:
                     "*.parquet"))
 
 
+def choose_checkpoint(run_dir: Path) -> Path:
+    ckpt_dirs = [p for p in (run_dir / "checkpoints").glob("*")
+                 if p.is_dir() and (p / "cfg.json").exists()]
+    if not ckpt_dirs:
+        raise FileNotFoundError(f"no checkpoint in {run_dir}")
+
+    def rank(p: Path):
+        name = p.name
+        if name.startswith("sae_step_"):
+            try:
+                return (0, int(name.split("_")[-1]))
+            except ValueError:
+                return (0, 0)
+        return (1, 0)
+
+    return sorted(ckpt_dirs, key=rank)[-1]
+
+
 def list_shards(vec_dir: str) -> list[Path]:
     return sorted(Path(vec_dir).glob("*.npy"))
 
@@ -160,10 +178,7 @@ def main():
     if not candidates:
         raise FileNotFoundError(f"no matches for {args.sae_dir}")
     run_dir = candidates[0]
-    ckpt = next((p for p in (run_dir / "checkpoints").glob("*")
-                 if p.is_dir() and (p / "cfg.json").exists()), None)
-    if ckpt is None:
-        raise FileNotFoundError(f"no checkpoint in {run_dir}")
+    ckpt = choose_checkpoint(run_dir)
     print(f"run: {run_dir.name}")
     print(f"checkpoint: {ckpt.name}")
 
