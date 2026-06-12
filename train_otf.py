@@ -39,6 +39,7 @@ def train_otf(cfg: dict):
     scfg = SaeConfig(
         sae_type=sae_type,
         expansion_factor=sae_cfg_dict["expansion_factor"],
+        num_latents=sae_cfg_dict.get("num_latents", 0),
         k=sae_cfg_dict["k"],
         k_anneal=sae_cfg_dict.get("k_anneal", False),
         matryoshka_sizes=sae_cfg_dict.get("matryoshka_sizes", ""),

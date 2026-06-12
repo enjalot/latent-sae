@@ -1,0 +1,42 @@
+name: colbert_answerai96_ceiling_64K_oldrecipe_replay4_2B
+description: >
+  Ceiling experiment, width point 2: the 32K run on answerai-colbert-small-v1
+  (96d) nearly saturated its dictionary (32,686/32,768 live on the 10K-doc
+  scan), so the 96d ceiling is above 32K. This run mirrors phase 17q
+  (64K latents, matryoshka ladder 512..65536) with the 96d encoder.
+  Controls: 17q (64d, 64K) → 13,014 live; ceiling_32K (96d) → 32,686 live.
+
+data:
+  parquet_dirs:
+    - /data/chunks/fineweb-edu-sample-10BT-chunked-500/train
+    - /data/chunks/RedPajama-Data-V2-sample-10B-chunked-500/train
+    - /data/chunks/pile-uncopyrighted-chunked-500/train
+  d_in: 96
+  model_id: answerdotai/answerai-colbert-small-v1
+  chunks_per_encode: 64
+  queue_size: 4
+  seed: 42
+  n_samples: 2000000000
+  shuffle_buffer_size: 4000000
+  on_device: true
+  replay_factor: 4.0
+
+sae:
+  sae_type: matryoshka
+  expansion_factor: 683
+  num_latents: 65536
+  k: 32
+  k_anneal: false
+  matryoshka_sizes: "512,2048,8192,16384,32768,65536"
+  matryoshka_ks: "8,16,32,32,32,32"
+
+train:
+  batch_size: 8192
+  lr_warmup_steps: 5000
+  use_amp: true
+  save_every: 100000
+  auxk_alpha: 0.0
+  use_grad_clip: true
+
+logging:
+  results_dir: experiments/results

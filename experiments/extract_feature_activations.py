@@ -44,6 +44,12 @@ DATASET_PATHS = {
         "vectors": "/data/embeddings/pile-uncopyrighted-chunked-500-mxbai-edge-32m/train",
         "parquets": "/data/chunks/pile-uncopyrighted-chunked-500/train",
     },
+    # 96d ceiling experiment — token embeddings from embed_chunks_pylate.py
+    "fineweb-answerai96": {
+        "vectors": "/data/embeddings/fineweb-edu-sample-10BT-chunked-500-answerai-small/train",
+        "parquets": "/data/chunks/fineweb-edu-sample-10BT-chunked-500/train",
+        "tokenizer": "answerdotai/answerai-colbert-small-v1",
+    },
 }
 
 TOKENIZER_ID = "bert-base-multilingual-cased"
@@ -176,7 +182,7 @@ def main():
     print(f"loading {n_chunks:,} chunk texts...")
     chunk_texts = load_chunk_texts(paths["parquets"], n_chunks)
     from transformers import AutoTokenizer
-    tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_ID)
+    tokenizer = AutoTokenizer.from_pretrained(paths.get("tokenizer", TOKENIZER_ID))
 
     # For each live feature, serialize top activations with context windows
     print("rendering feature windows...")

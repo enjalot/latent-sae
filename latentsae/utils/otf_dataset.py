@@ -275,8 +275,10 @@ class OnTheFlyColBERTDataset(IterableDataset):
         """
         buf_size = int(self.shuffle_buffer_size)
         if self.on_device:
-            # GPU-resident reservoir buffer. ~500 MB VRAM at buf_size=4M.
-            buf = torch.empty((buf_size, 64), dtype=torch.float16, device=self.device)
+            # GPU-resident reservoir buffer, allocated lazily from the first
+            # chunk's dim (64 for mxbai-edge, 96 for answerai-small, ...).
+            # ~500 MB VRAM at buf_size=4M, d=64.
+            buf = None
             fill = 0
             pending = 0
             gen = torch.Generator(device=self.device); gen.manual_seed(self.seed + 1)
@@ -284,6 +286,9 @@ class OnTheFlyColBERTDataset(IterableDataset):
                 chunk = self._q.get()
                 if chunk is None:
                     return
+                if buf is None:
+                    buf = torch.empty((buf_size, chunk.shape[1]),
+                                      dtype=torch.float16, device=self.device)
                 n = int(chunk.shape[0])
                 pending += n * self.replay_factor
                 if fill < buf_size:
@@ -304,7 +309,7 @@ class OnTheFlyColBERTDataset(IterableDataset):
                     pending -= self.batch_size
                     yield batch.to(dtype=torch.float32)
             return
-        buf = np.empty((buf_size, 64), dtype=np.float16)
+        buf = None  # allocated lazily from the first chunk's dim
         fill = 0
         pending = 0  # tokens added but not yet accounted for in yields
         rng = np.random.default_rng(self.seed + 1)
@@ -312,6 +317,8 @@ class OnTheFlyColBERTDataset(IterableDataset):
             chunk = self._q.get()
             if chunk is None:
                 return
+            if buf is None:
+                buf = np.empty((buf_size, chunk.shape[1]), dtype=np.float16)
             n = int(chunk.shape[0])
             # replay_factor > 1 multiplies the "pending yield budget" so
             # each pulled encode batch produces >1 SAE batches — every

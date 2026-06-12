@@ -11,3 +11,5 @@ safetensors
 bitsandbytes
 huggingface_hub
 ipyreact
+pylate
+pytest
