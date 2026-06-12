@@ -1,0 +1,46 @@
+name: colbert_jinacolbert128_ceiling_64K_oldrecipe_replay4_2B
+description: >
+  Ceiling experiment, dimension point 3: jina-colbert-v2 (128d tokens,
+  559M params, multilingual). Mirrors the 64K-width row of the 2x2
+  (phase 17q at 64d -> 5,320 live@64; answerai 96d -> 33,402 live@64).
+  Same recipe/data/seed/budget as all ceiling runs.
+
+  Note: jina-colbert-v2 is MRL-trained for output dims 128/96/64 — its
+  output can be dim-sliced for a later within-encoder dimension sweep
+  that removes the encoder confound entirely.
+
+data:
+  parquet_dirs:
+    - /data/chunks/fineweb-edu-sample-10BT-chunked-500/train
+    - /data/chunks/RedPajama-Data-V2-sample-10B-chunked-500/train
+    - /data/chunks/pile-uncopyrighted-chunked-500/train
+  d_in: 128
+  model_id: jinaai/jina-colbert-v2
+  trust_remote_code: true
+  chunks_per_encode: 64
+  queue_size: 4
+  seed: 42
+  n_samples: 2000000000
+  shuffle_buffer_size: 4000000
+  on_device: true
+  replay_factor: 4.0
+
+sae:
+  sae_type: matryoshka
+  expansion_factor: 512
+  num_latents: 65536
+  k: 32
+  k_anneal: false
+  matryoshka_sizes: "512,2048,8192,16384,32768,65536"
+  matryoshka_ks: "8,16,32,32,32,32"
+
+train:
+  batch_size: 8192
+  lr_warmup_steps: 5000
+  use_amp: true
+  save_every: 100000
+  auxk_alpha: 0.0
+  use_grad_clip: true
+
+logging:
+  results_dir: experiments/results

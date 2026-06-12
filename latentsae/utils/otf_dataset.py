@@ -62,6 +62,7 @@ class OnTheFlyColBERTDataset(IterableDataset):
         queue_size: int = 4,
         seed: int = 42,
         encode_max_length: int = 512,
+        trust_remote_code: bool = False,
         domain_weights: Optional[list[float]] = None,
         shuffle_buffer_size: int = 0,
         replay_factor: float = 1.0,
@@ -96,6 +97,7 @@ class OnTheFlyColBERTDataset(IterableDataset):
         self.queue_size = queue_size
         self.seed = seed
         self.encode_max_length = encode_max_length
+        self.trust_remote_code = trust_remote_code
         self.shuffle_buffer_size = shuffle_buffer_size
         self.replay_factor = float(replay_factor)
         # When True, encode path keeps tensors on GPU throughout:
@@ -126,7 +128,8 @@ class OnTheFlyColBERTDataset(IterableDataset):
         def worker():
             try:
                 model = models.ColBERT(model_name_or_path=self.model_id,
-                                       device=self.device)
+                                       device=self.device,
+                                       trust_remote_code=self.trust_remote_code)
                 rng = random.Random(self.seed)
                 domain_indices = list(range(len(self.domain_paths)))
                 # Per-domain parquet-file queue (shuffled, refilled on exhaustion).
