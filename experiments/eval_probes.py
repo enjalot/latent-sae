@@ -6,8 +6,12 @@ Probes (logistic regression on raw vs reconstructed vs sparse activations):
   - BANKING77 (77 fine-grained intents), CLINC150 (150 intents)
 
 Retrieval: SciFact (nDCG@10 on cosine similarity)
-k-Sparse probing: accuracy with only top-1, top-5, top-10, top-20 features
+k-Sparse probing: accuracy with only top-1, top-5, top-10, top-20 features,
+  with a PCA baseline at matched feature budget (Kantamneni et al. protocol)
 Feature quality: decoder redundancy (MMCS), utilization, activation entropy
+Classification accuracies ship with bootstrap CIs over the test split
+(acc / acc_ci_lo / acc_ci_hi); the dense probe on raw embeddings is also
+reported explicitly as baseline_dense.
 
 Usage:
   python -m experiments.eval_probes --sae-path checkpoints/sae_topk_64_8.xxx
@@ -23,6 +27,8 @@ import torch
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, f1_score
 from scipy.stats import spearmanr
+
+from experiments.stats_utils import bootstrap_ci
 
 
 # ── Data Loaders ──
@@ -176,10 +182,27 @@ def probe_classification(X_train, y_train, X_test, y_test):
     clf = LogisticRegression(max_iter=1000, random_state=42, n_jobs=1)
     clf.fit(X_train, y_train)
     preds = clf.predict(X_test)
+    # Bootstrap CI over the test split (resample per-example correctness)
+    correct = (preds == np.asarray(y_test)).astype(float)
+    acc, acc_lo, acc_hi = bootstrap_ci(correct)
     return {
         "accuracy": accuracy_score(y_test, preds),
         "f1_macro": f1_score(y_test, preds, average="macro"),
+        "acc": acc,
+        "acc_ci_lo": acc_lo,
+        "acc_ci_hi": acc_hi,
     }
+
+
+def probe_pca_baseline(X_train, y_train, X_test, y_test, n_components):
+    """PCA of raw embeddings to a matched feature budget, then logistic
+    regression (Kantamneni et al. baseline protocol)."""
+    from sklearn.decomposition import PCA
+    n_components = min(n_components, X_train.shape[1], len(X_train))
+    pca = PCA(n_components=n_components, random_state=42)
+    X_train_pca = pca.fit_transform(X_train)
+    X_test_pca = pca.transform(X_test)
+    return probe_classification(X_train_pca, y_train, X_test_pca, y_test)
 
 
 def probe_similarity(emb1_test, emb2_test, labels_test):
@@ -300,15 +323,16 @@ def run_classification_task(sae, load_fn, model_name, device, max_samples):
 
     result = {
         "raw_embeddings": raw_result,
+        "baseline_dense": raw_result,  # explicit name: dense probe on raw embeddings
         "reconstructed": recon_result,
         "sparse_features": sparse_result,
         "reconstruction_gap": raw_result["accuracy"] - recon_result["accuracy"],
         "feature_quality_gap": raw_result["accuracy"] - sparse_result["accuracy"],
     }
 
-    print(f"  Raw embeddings:  acc={raw_result['accuracy']:.4f}  f1={raw_result['f1_macro']:.4f}")
-    print(f"  Reconstructed:   acc={recon_result['accuracy']:.4f}  f1={recon_result['f1_macro']:.4f}  (gap={result['reconstruction_gap']:+.4f})")
-    print(f"  Sparse features: acc={sparse_result['accuracy']:.4f}  f1={sparse_result['f1_macro']:.4f}  (gap={result['feature_quality_gap']:+.4f})")
+    print(f"  Raw embeddings:  acc={raw_result['accuracy']:.4f} [{raw_result['acc_ci_lo']:.4f}, {raw_result['acc_ci_hi']:.4f}]  f1={raw_result['f1_macro']:.4f}")
+    print(f"  Reconstructed:   acc={recon_result['accuracy']:.4f} [{recon_result['acc_ci_lo']:.4f}, {recon_result['acc_ci_hi']:.4f}]  f1={recon_result['f1_macro']:.4f}  (gap={result['reconstruction_gap']:+.4f})")
+    print(f"  Sparse features: acc={sparse_result['accuracy']:.4f} [{sparse_result['acc_ci_lo']:.4f}, {sparse_result['acc_ci_hi']:.4f}]  f1={sparse_result['f1_macro']:.4f}  (gap={result['feature_quality_gap']:+.4f})")
 
     return task_name, result, embeddings, labels, train_idx, test_idx
 
@@ -358,7 +382,8 @@ def evaluate_sae(sae, model_name, device="cpu", max_samples=5000, suite="standar
     sparse_sim = probe_similarity(sparse1[test_idx_sim], sparse2[test_idx_sim], labels[test_idx_sim])
 
     results[task_name] = {
-        "raw_embeddings": raw_sim, "reconstructed": recon_sim, "sparse_features": sparse_sim,
+        "raw_embeddings": raw_sim, "baseline_dense": raw_sim,
+        "reconstructed": recon_sim, "sparse_features": sparse_sim,
         "reconstruction_gap": raw_sim["spearman"] - recon_sim["spearman"],
         "feature_quality_gap": raw_sim["spearman"] - sparse_sim["spearman"],
     }
@@ -401,7 +426,8 @@ def evaluate_sae(sae, model_name, device="cpu", max_samples=5000, suite="standar
             sparse_ret = eval_retrieval(query_sparse, corpus_sparse, query_ids, corpus_ids, qrels)
 
             results["SciFact Retrieval"] = {
-                "raw_embeddings": raw_ret, "reconstructed": recon_ret, "sparse_features": sparse_ret,
+                "raw_embeddings": raw_ret, "baseline_dense": raw_ret,
+                "reconstructed": recon_ret, "sparse_features": sparse_ret,
                 "reconstruction_gap": raw_ret["ndcg@10"] - recon_ret["ndcg@10"],
                 "feature_quality_gap": raw_ret["ndcg@10"] - sparse_ret["ndcg@10"],
             }
@@ -426,8 +452,17 @@ def evaluate_sae(sae, model_name, device="cpu", max_samples=5000, suite="standar
                 sparse_k[last_train_idx], last_labels[last_train_idx],
                 sparse_k[last_test_idx], last_labels[last_test_idx]
             )
+            # PCA baseline at matched feature budget (Kantamneni protocol):
+            # raw embeddings reduced to probe_k components, then logistic regression
+            res["baseline_pca"] = probe_pca_baseline(
+                last_embeddings[last_train_idx], last_labels[last_train_idx],
+                last_embeddings[last_test_idx], last_labels[last_test_idx],
+                n_components=probe_k,
+            )
             k_results[f"k={probe_k}"] = res
-            print(f"  k={probe_k:<4}  acc={res['accuracy']:.4f}  f1={res['f1_macro']:.4f}")
+            print(f"  k={probe_k:<4}  acc={res['accuracy']:.4f}  f1={res['f1_macro']:.4f}  "
+                  f"pca{probe_k}_acc={res['baseline_pca']['accuracy']:.4f}  "
+                  f"(sae-pca={res['accuracy'] - res['baseline_pca']['accuracy']:+.4f})")
 
         results["k-Sparse Probing"] = k_results
 
