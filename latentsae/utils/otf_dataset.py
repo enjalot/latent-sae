@@ -63,6 +63,7 @@ class OnTheFlyColBERTDataset(IterableDataset):
         seed: int = 42,
         encode_max_length: int = 512,
         trust_remote_code: bool = False,
+        truncate_dim: int = 0,
         domain_weights: Optional[list[float]] = None,
         shuffle_buffer_size: int = 0,
         replay_factor: float = 1.0,
@@ -98,6 +99,9 @@ class OnTheFlyColBERTDataset(IterableDataset):
         self.seed = seed
         self.encode_max_length = encode_max_length
         self.trust_remote_code = trust_remote_code
+        # MRL slice: keep the first truncate_dim dims and L2-renormalize
+        # (e.g. jina-colbert-v2 is Matryoshka-trained for 128/96/64).
+        self.truncate_dim = int(truncate_dim)
         self.shuffle_buffer_size = shuffle_buffer_size
         self.replay_factor = float(replay_factor)
         # When True, encode path keeps tensors on GPU throughout:
@@ -189,10 +193,21 @@ class OnTheFlyColBERTDataset(IterableDataset):
                     # before enqueueing.
                     # GPU path: emb_list is a list of fp32 CUDA tensors. Cast
                     # to fp16 and concatenate on-device; enqueue a CUDA tensor.
+                    if self.truncate_dim:
+                        sliced = []
+                        for e in emb_list:
+                            e = e[:, : self.truncate_dim]
+                            if hasattr(e, "norm"):  # torch tensor
+                                e = e / e.norm(dim=-1, keepdim=True).clamp_min(1e-8)
+                            else:  # numpy
+                                e = e / np.maximum(
+                                    np.linalg.norm(e, axis=-1, keepdims=True), 1e-8)
+                            sliced.append(e)
+                        emb_list = sliced
                     if self.on_device:
                         if not emb_list:
                             continue
-                        # Each element is a 2D fp32 CUDA tensor (n_tokens_i, 64)
+                        # Each element is a 2D fp32 CUDA tensor (n_tokens_i, d)
                         flat = torch.cat([e.to(dtype=torch.float16) for e in emb_list], dim=0)
                         self._tokens_produced += int(flat.shape[0])
                         self._q.put(flat)

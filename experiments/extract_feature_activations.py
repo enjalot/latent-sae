@@ -77,15 +77,31 @@ def load_chunk_texts(parquet_dir: str, n_chunks: int) -> list[str]:
 @torch.no_grad()
 def collect_top_activations(sae: Sae, vectors: np.ndarray, offsets: np.ndarray,
                             n_chunks: int, top_n: int, batch_size: int = 4096,
-                            device: str = "cuda") -> list[list[tuple]]:
+                            device: str = "cuda", reservoir_size: int = 0):
     """For each latent, return its top-N (activation, chunk_idx, token_idx) heap.
 
     Streams tokens through SAE; maintains a min-heap per feature of size top_n.
+
+    With reservoir_size > 0, also keeps a uniform reservoir sample of that many
+    firings per feature (activation, chunk_idx, token_idx). Top-N alone
+    over-represents the extreme tail of each feature's activation distribution
+    (max-activation bias — see plan-sae-validation.md V1 / Delphi); the
+    reservoir is an unbiased sample of the full firing distribution, from
+    which scorers can stratify by decile. Returns (feat_heaps, reservoir)
+    where reservoir is None or a dict of arrays.
     """
+    import random as _random
     sae.eval()
     num_latents = sae.num_latents
     # Min-heaps of (act, chunk_idx, token_idx) per feature
     feat_heaps: list[list[tuple]] = [[] for _ in range(num_latents)]
+    M = int(reservoir_size)
+    if M > 0:
+        res_act = np.zeros((num_latents, M), dtype=np.float32)
+        res_chunk = np.full((num_latents, M), -1, dtype=np.int32)
+        res_tok = np.full((num_latents, M), -1, dtype=np.int32)
+    n_fires = np.zeros(num_latents, dtype=np.int64)
+    _rand = _random.Random(0)
 
     total_tokens = int(offsets[n_chunks])
     print(f"  streaming {total_tokens:,} tokens across {n_chunks:,} chunks...")
@@ -127,8 +143,23 @@ def collect_top_activations(sae: Sae, vectors: np.ndarray, offsets: np.ndarray,
                     heapq.heappush(h, (a, c, ti))
                 elif a > h[0][0]:
                     heapq.heapreplace(h, (a, c, ti))
+                nf = n_fires[fid] = n_fires[fid] + 1
+                if M > 0:
+                    if nf <= M:
+                        slot = nf - 1
+                    else:
+                        slot = _rand.randrange(nf)
+                        if slot >= M:
+                            continue
+                    res_act[fid, slot] = a
+                    res_chunk[fid, slot] = c
+                    res_tok[fid, slot] = ti
     print(f"  streamed in {time.monotonic() - t0:.1f}s")
-    return feat_heaps
+    reservoir = None
+    if M > 0:
+        reservoir = {"acts": res_act, "chunks": res_chunk, "tokens": res_tok,
+                     "n_fires": n_fires, "reservoir_size": np.int64(M)}
+    return feat_heaps, reservoir
 
 
 def render_window(tokens: list[str], pos: int, radius: int = 10) -> str:
@@ -150,6 +181,10 @@ def main():
     ap.add_argument("--dataset", default="fineweb", choices=list(DATASET_PATHS))
     ap.add_argument("--n-chunks", type=int, default=10000)
     ap.add_argument("--top-n", type=int, default=16)
+    ap.add_argument("--reservoir-size", type=int, default=48,
+                    help="uniform per-feature sample of firings written to "
+                         "feature_activations_reservoir.npz (0 = off); "
+                         "counters max-activation bias in downstream scoring")
     ap.add_argument("--out", default=None, help="output JSON path (default: run-dir/feature_activations.json)")
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--batch-size", type=int, default=8192)
@@ -179,9 +214,11 @@ def main():
     print(f"chunks available: {len(offsets) - 1:,}")
     n_chunks = min(args.n_chunks, len(offsets) - 1)
 
-    # Collect top activations
-    feat_heaps = collect_top_activations(sae, vectors, offsets, n_chunks,
-                                         args.top_n, args.batch_size, args.device)
+    # Collect top activations (+ uniform reservoir over the firing distribution)
+    feat_heaps, reservoir = collect_top_activations(
+        sae, vectors, offsets, n_chunks,
+        args.top_n, args.batch_size, args.device,
+        reservoir_size=args.reservoir_size)
 
     # Load chunk texts + tokenize for context windows
     print(f"loading {n_chunks:,} chunk texts...")
@@ -231,6 +268,12 @@ def main():
         "live_feature_ids": live_features,
         "features": per_feature,
     }
+    if reservoir is not None:
+        res_path = out_path.with_name(out_path.stem + "_reservoir.npz")
+        np.savez_compressed(res_path, **reservoir)
+        payload["reservoir_file"] = res_path.name
+        print(f"wrote {res_path} (uniform firing sample, "
+              f"M={int(reservoir['reservoir_size'])})")
     out_path.write_text(json.dumps(payload, indent=2))
     print(f"\nwrote {out_path}")
     print(f"live features: {len(live_features)} / {sae.num_latents}")

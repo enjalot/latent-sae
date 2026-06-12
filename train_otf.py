@@ -80,6 +80,7 @@ def train_otf(cfg: dict):
         seed=cfg["data"].get("seed", 42),
         domain_weights=cfg["data"].get("domain_weights"),
         trust_remote_code=bool(cfg["data"].get("trust_remote_code", False)),
+        truncate_dim=int(cfg["data"].get("truncate_dim", 0)),
         shuffle_buffer_size=int(cfg["data"].get("shuffle_buffer_size", 0)),
         replay_factor=float(cfg["data"].get("replay_factor", 1.0)),
         on_device=bool(cfg["data"].get("on_device", False)),

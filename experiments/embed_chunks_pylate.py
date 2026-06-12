@@ -42,6 +42,8 @@ def main():
     ap.add_argument("--batch-size", type=int, default=64)
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--trust-remote-code", action="store_true")
+    ap.add_argument("--truncate-dim", type=int, default=0,
+                    help="MRL slice: keep first N dims and L2-renormalize")
     args = ap.parse_args()
 
     from pylate import models
@@ -62,6 +64,9 @@ def main():
             convert_to_numpy=False,
         )
         for e in embs:
+            if args.truncate_dim:
+                e = e[:, : args.truncate_dim]
+                e = e / e.norm(dim=-1, keepdim=True).clamp_min(1e-8)
             arrs.append(e.to(dtype=torch.float16).cpu().numpy())
             offsets.append(offsets[-1] + e.shape[0])
         if (s // args.batch_size) % 20 == 0:
