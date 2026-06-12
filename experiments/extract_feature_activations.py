@@ -44,11 +44,16 @@ DATASET_PATHS = {
         "vectors": "/data/embeddings/pile-uncopyrighted-chunked-500-mxbai-edge-32m/train",
         "parquets": "/data/chunks/pile-uncopyrighted-chunked-500/train",
     },
-    # 96d ceiling experiment — token embeddings from embed_chunks_pylate.py
+    # 96d/128d ceiling experiments — token embeddings from embed_chunks_pylate.py
     "fineweb-answerai96": {
         "vectors": "/data/embeddings/fineweb-edu-sample-10BT-chunked-500-answerai-small/train",
         "parquets": "/data/chunks/fineweb-edu-sample-10BT-chunked-500/train",
         "tokenizer": "answerdotai/answerai-colbert-small-v1",
+    },
+    "fineweb-jinacolbert128": {
+        "vectors": "/data/embeddings/fineweb-edu-sample-10BT-chunked-500-jina-colbert-v2/train",
+        "parquets": "/data/chunks/fineweb-edu-sample-10BT-chunked-500/train",
+        "tokenizer": "jinaai/jina-colbert-v2",
     },
 }
 

@@ -41,10 +41,12 @@ def main():
     ap.add_argument("--n-chunks", type=int, default=10000)
     ap.add_argument("--batch-size", type=int, default=64)
     ap.add_argument("--device", default="cuda")
+    ap.add_argument("--trust-remote-code", action="store_true")
     args = ap.parse_args()
 
     from pylate import models
-    model = models.ColBERT(model_name_or_path=args.model_id, device=args.device)
+    model = models.ColBERT(model_name_or_path=args.model_id, device=args.device,
+                           trust_remote_code=args.trust_remote_code)
 
     texts = load_chunk_texts(args.parquet_dir, args.n_chunks)
     texts = [t if t and t.strip() else " " for t in texts]
