@@ -40,9 +40,14 @@ def triton_decode(top_indices: Tensor, top_acts: Tensor, W_dec: Tensor):
 try:
     from .kernels import TritonDecoder
 except ImportError:
-    decoder_impl = eager_decode
-else:
-    if os.environ.get("SAE_DISABLE_TRITON") == "1":
-        decoder_impl = eager_decode
-    else:
-        decoder_impl = triton_decode
+    TritonDecoder = None
+
+_DISABLE_TRITON = os.environ.get("SAE_DISABLE_TRITON") == "1"
+
+
+def decoder_impl(top_indices: Tensor, top_acts: Tensor, W_dec: Tensor):
+    """Dispatch per call: Triton requires CUDA tensors, so CPU inputs
+    (CPU eval, loading published SAEs without a GPU) fall back to eager."""
+    if TritonDecoder is not None and not _DISABLE_TRITON and top_acts.is_cuda:
+        return triton_decode(top_indices, top_acts, W_dec)
+    return eager_decode(top_indices, top_acts, W_dec)

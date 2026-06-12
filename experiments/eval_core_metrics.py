@@ -7,7 +7,10 @@ vectors through the SAE, and writes a metrics.json alongside the run's
 results.json.
 
 Metrics computed:
-    fvu               — 1 - Var(err) / Var(x), averaged element-wise
+    fvu               — sum(err^2) / sum((x - mean_d(x))^2), with per-dimension
+                         centering of x — matches the training-time formula in
+                         latentsae/sae.py (total_variance), so train and eval
+                         FVU are directly comparable
     mse               — mean squared error per element
     l0                — expected number of active latents per sample (== k for TopK)
     dead_features     — # latents that never fired on the eval sample
@@ -76,11 +79,14 @@ def eval_checkpoint(ckpt_dir: Path, x: torch.Tensor, batch_size: int = 4096,
     num_latents = sae.num_latents
 
     n = x.shape[0]
+    d_in = x.shape[1]
     fire_count = torch.zeros(num_latents, device=device, dtype=torch.long)
     l0_sum = 0.0
     sq_err_sum = 0.0
-    x_sq_sum = 0.0
-    x_sum = 0.0
+    # Per-dimension accumulators: FVU must center each dimension on its own
+    # mean (as training does), not on the global scalar mean of all elements.
+    x_sum = torch.zeros(d_in, device=device, dtype=torch.float64)
+    x_sq_sum = torch.zeros(d_in, device=device, dtype=torch.float64)
     n_elem = 0
 
     for s in range(0, n, batch_size):
@@ -92,8 +98,8 @@ def eval_checkpoint(ckpt_dir: Path, x: torch.Tensor, batch_size: int = 4096,
 
         err = (batch - recon).float()
         sq_err_sum += (err ** 2).sum().item()
-        x_sum += batch.float().sum().item()
-        x_sq_sum += (batch.float() ** 2).sum().item()
+        x_sum += batch.double().sum(dim=0)
+        x_sq_sum += (batch.double() ** 2).sum(dim=0)
         n_elem += batch.numel()
 
         active = latent_acts > 0              # (B, k)
@@ -104,8 +110,10 @@ def eval_checkpoint(ckpt_dir: Path, x: torch.Tensor, batch_size: int = 4096,
             torch.ones_like(fired_ids, dtype=torch.long))
 
     mse = sq_err_sum / n_elem
-    x_var = (x_sq_sum / n_elem) - (x_sum / n_elem) ** 2
-    fvu = mse / max(x_var, 1e-12)
+    # Per-dimension total variance: sum_d [ sum_b x_bd^2 - (sum_b x_bd)^2 / n ].
+    # Equals (x - x.mean(0)).pow(2).sum(), the training denominator.
+    total_variance = (x_sq_sum - x_sum.pow(2) / n).sum().item()
+    fvu = sq_err_sum / max(total_variance, 1e-12)
     l0 = l0_sum / n
     dead = (fire_count == 0).sum().item()
     dead_pct = dead / num_latents
