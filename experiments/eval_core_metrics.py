@@ -33,10 +33,15 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from latentsae.sae import Sae  # noqa: E402
+from experiments.eval_manifest import assert_eval_slice  # noqa: E402
 
 
 def load_eval_sample(data_dir: str, offset: int, n: int, d_in: int) -> torch.Tensor:
-    """Read `n` rows starting at `offset` from the first .npy shard in data_dir."""
+    """Read `n` rows starting at `offset` from the first .npy shard in data_dir.
+
+    The slice must be reserved for eval in the dataset's manifest
+    (see experiments/eval_manifest.py); set SAE_EVAL_NO_MANIFEST=1 to bypass.
+    """
     d = Path(data_dir)
     # Try data-*.npy convention first (English fineweb/redpajama/pile);
     # fall back to any *.npy (multilingual shards: 000_00000.npy)
@@ -52,6 +57,7 @@ def load_eval_sample(data_dir: str, offset: int, n: int, d_in: int) -> torch.Ten
     start = max(offset, 0)
     if end <= start:
         raise ValueError(f"empty eval slice: offset={offset}, n={n}, total={total}")
+    assert_eval_slice(data_dir, shards[0].name, start, end)
     chunk = np.asarray(arr[start:end], dtype=np.float32)
     return torch.from_numpy(chunk)
 
