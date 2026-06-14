@@ -196,6 +196,9 @@ def main():
                     help="uniform per-feature sample of firings written to "
                          "feature_activations_reservoir.npz (0 = off); "
                          "counters max-activation bias in downstream scoring")
+    ap.add_argument("--window-mode", default="top", choices=["top", "stratified"],
+                    help="source for the rendered `features` windows: top-N heap "
+                         "(default) or per-decile picks from the reservoir (V1)")
     ap.add_argument("--out", default=None, help="output JSON path (default: run-dir/feature_activations.json)")
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--batch-size", type=int, default=8192)
@@ -247,14 +250,27 @@ def main():
             tok_cache[ci] = tokenizer.tokenize(chunk_texts[ci])
         return tok_cache[ci]
 
+    # Window source: "top" = the top-N heap (max-activation tail, default for
+    # backwards compat); "stratified" = per-decile picks from the uniform
+    # reservoir (unbiased over the firing distribution — V1 of the validation
+    # plan; the label script and scorers consume `features` unchanged).
+    if args.window_mode == "stratified":
+        if reservoir is None:
+            raise SystemExit("--window-mode stratified requires --reservoir-size > 0")
+        from experiments.stratified import stratified_examples
+        per_decile = max(1, args.top_n // 10)
+
     per_feature = {}
-    for fid, heap in enumerate(feat_heaps):
-        if not heap:
+    for fid in range(sae.num_latents):
+        if args.window_mode == "stratified":
+            picks = stratified_examples(reservoir, fid, per_decile=per_decile)
+            hits = [(a, c, t) for (_s, a, c, t) in picks]
+        else:
+            hits = sorted(feat_heaps[fid], key=lambda x: -x[0])
+        if not hits:
             continue
-        # Sort descending by activation
-        sorted_hits = sorted(heap, key=lambda x: -x[0])
         entries = []
-        for act, ci, ti in sorted_hits:
+        for act, ci, ti in hits:
             tokens = get_tokens(ci)
             ti_safe = min(ti, len(tokens) - 1)
             entries.append({
