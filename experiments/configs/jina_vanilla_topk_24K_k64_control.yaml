@@ -1,0 +1,43 @@
+name: jina_vanilla_topk_24K_k64_control
+description: >
+  Vanilla-TopK control for the decoder-UMAP isotropy hypothesis
+  (plan-feature-umap.md P3). Plain TopK (NO matryoshka, no decorr) at
+  24K latents, k=64, replay 4, English-only jina-v5-nano pooled
+  embeddings. Compare its decoder NN-cosine distribution and UMAP
+  structure against the published Stage J matryoshka SAE.
+
+  Hypothesis: matryoshka suppresses feature splitting -> near-isotropic
+  decoder dictionary -> no UMAP structure. If vanilla TopK shows a fatter
+  right tail in NN-cosine (splitting families) and visible decoder-UMAP
+  cluster, the isotropy is matryoshka-induced; if it's also isotropic,
+  the cause is the contrastive embedding space itself.
+
+data:
+  data_dirs:
+    - /data/embeddings/fineweb-edu-sample-10BT-chunked-500-jina-v5-nano/train
+  d_in: 768
+  file_type: npy
+  cache_size: 4
+  replay_factor: 4.0
+  seed: 42
+
+sae:
+  sae_type: topk
+  expansion_factor: 32        # 768 * 32 = 24576
+  k: 64
+  k_anneal: false
+
+train:
+  batch_size: 1024
+  lr_warmup_steps: 2000
+  use_amp: true
+  save_every: 10000
+  auxk_alpha: 0.0
+  num_workers: 0
+  use_grad_clip: true
+  use_b_dec_init: true
+  use_decoder_norm: true
+  use_remove_parallel_grad: true
+
+logging:
+  results_dir: experiments/results

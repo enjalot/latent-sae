@@ -1,0 +1,50 @@
+name: colbert_answerai96_seed44_32K_oldrecipe_replay4_2B
+description: >
+  Dimensionality-ceiling experiment: is the ~10K live-feature plateau on
+  mxbai-edge-colbert (64d tokens) set by the token dimension? Exact replica
+  of phase 17n (32,768 latents via num_latents, matryoshka old recipe,
+  replay 4, shuffle 4M, 2B samples / 500M unique tokens, same data mix,
+  same seed) with the encoder swapped to answerai-colbert-small-v1 (96d).
+
+  Control: 17n run 20260426_234436 → 10,281 live features, FVU per its
+  feature_activations.json. Hypothesis: if the ceiling is dimensional,
+  96d should land well above ~10K live (packing arguments predict
+  superlinear growth with dim); if it stays ~10K, the ceiling is
+  data/recipe-driven, not dimensional.
+
+data:
+  parquet_dirs:
+    - /data/chunks/fineweb-edu-sample-10BT-chunked-500/train
+    - /data/chunks/RedPajama-Data-V2-sample-10B-chunked-500/train
+    - /data/chunks/pile-uncopyrighted-chunked-500/train
+  d_in: 96
+  model_id: answerdotai/answerai-colbert-small-v1
+  chunks_per_encode: 64
+  queue_size: 4
+  seed: 44
+  n_samples: 2000000000
+  shuffle_buffer_size: 4000000
+  on_device: true
+  replay_factor: 4.0
+
+sae:
+  sae_type: matryoshka
+  # expansion_factor is cosmetic here (96 * 341 != 32768);
+  # num_latents pins the dictionary to exactly 17n's width.
+  expansion_factor: 341
+  num_latents: 32768
+  k: 32
+  k_anneal: false
+  matryoshka_sizes: "512,2048,8192,16384,32768"
+  matryoshka_ks: "8,16,32,32,32"
+
+train:
+  batch_size: 8192
+  lr_warmup_steps: 5000
+  use_amp: true
+  save_every: 100000
+  auxk_alpha: 0.0
+  use_grad_clip: true
+
+logging:
+  results_dir: experiments/results
