@@ -55,6 +55,17 @@ DATASET_PATHS = {
         "parquets": "/data/chunks/fineweb-edu-sample-10BT-chunked-500/train",
         "tokenizer": "jinaai/jina-colbert-v2",
     },
+    # MRL dim-slices of jina-colbert-v2 (truncate + L2 renorm)
+    "fineweb-jinacolbert-mrl96": {
+        "vectors": "/data/embeddings/fineweb-edu-sample-10BT-chunked-500-jina-colbert-v2-mrl96/train",
+        "parquets": "/data/chunks/fineweb-edu-sample-10BT-chunked-500/train",
+        "tokenizer": "jinaai/jina-colbert-v2",
+    },
+    "fineweb-jinacolbert-mrl64": {
+        "vectors": "/data/embeddings/fineweb-edu-sample-10BT-chunked-500-jina-colbert-v2-mrl64/train",
+        "parquets": "/data/chunks/fineweb-edu-sample-10BT-chunked-500/train",
+        "tokenizer": "jinaai/jina-colbert-v2",
+    },
 }
 
 TOKENIZER_ID = "bert-base-multilingual-cased"
